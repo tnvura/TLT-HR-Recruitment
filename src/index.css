@@ -78,4 +78,8 @@ All colors MUST be HSL.
   body {
     @apply bg-background text-foreground;
   }
+
+  input, textarea, select {
+    @apply rounded-lg;
+  }
 }

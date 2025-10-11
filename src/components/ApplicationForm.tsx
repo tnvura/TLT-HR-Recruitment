@@ -149,9 +149,9 @@ export default function ApplicationForm() {
               name="first_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>First Name</FormLabel>
+                  <FormLabel className="text-foreground font-medium">First Name *</FormLabel>
                   <FormControl>
-                    <Input {...field} className="bg-input" />
+                    <Input {...field} placeholder="First Name" className="bg-secondary/50 border-border h-12" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -162,9 +162,9 @@ export default function ApplicationForm() {
               name="last_name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Last Name</FormLabel>
+                  <FormLabel className="text-foreground font-medium">Last Name *</FormLabel>
                   <FormControl>
-                    <Input {...field} className="bg-input" />
+                    <Input {...field} placeholder="Last Name" className="bg-secondary/50 border-border h-12" />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -178,9 +178,9 @@ export default function ApplicationForm() {
             name="email"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Email Address</FormLabel>
+                <FormLabel className="text-foreground font-medium">Email Address *</FormLabel>
                 <FormControl>
-                  <Input {...field} type="email" className="bg-input" />
+                  <Input {...field} type="email" placeholder="Email Address" className="bg-secondary/50 border-border h-12" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -192,9 +192,9 @@ export default function ApplicationForm() {
             name="phone_number"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Phone Number (Optional)</FormLabel>
+                <FormLabel className="text-foreground font-medium">Phone Number</FormLabel>
                 <FormControl>
-                  <Input {...field} type="tel" className="bg-input" />
+                  <Input {...field} type="tel" placeholder="Phone Number" className="bg-secondary/50 border-border h-12" />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -210,9 +210,9 @@ export default function ApplicationForm() {
                 name="current_position"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Current Position</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Current Position</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-input" />
+                      <Input {...field} placeholder="Current Position" className="bg-secondary/50 border-border h-12" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -223,9 +223,9 @@ export default function ApplicationForm() {
                 name="current_employer"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Current Employer</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Current Employer</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-input" />
+                      <Input {...field} placeholder="Current Employer" className="bg-secondary/50 border-border h-12" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -243,9 +243,9 @@ export default function ApplicationForm() {
                 name="education_level"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Education Level</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Education Level</FormLabel>
                     <FormControl>
-                      <Input {...field} placeholder="e.g., Bachelor's Degree" className="bg-input" />
+                      <Input {...field} placeholder="e.g., Bachelor's Degree" className="bg-secondary/50 border-border h-12" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -256,9 +256,9 @@ export default function ApplicationForm() {
                 name="institution"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Institution</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Institution</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-input" />
+                      <Input {...field} placeholder="Institution" className="bg-secondary/50 border-border h-12" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -276,9 +276,9 @@ export default function ApplicationForm() {
                 name="position_applied"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Position Applied</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Position Applied *</FormLabel>
                     <FormControl>
-                      <Input {...field} className="bg-input" />
+                      <Input {...field} placeholder="Position Applied" className="bg-secondary/50 border-border h-12" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -289,14 +289,14 @@ export default function ApplicationForm() {
                 name="years_of_experience"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Years of Experience</FormLabel>
+                    <FormLabel className="text-foreground font-medium">Years of Experience *</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
-                        <SelectTrigger className="bg-input">
+                        <SelectTrigger className="bg-secondary/50 border-border h-12">
                           <SelectValue placeholder="Select" />
                         </SelectTrigger>
                       </FormControl>
-                      <SelectContent className="bg-card z-50">
+                      <SelectContent className="bg-card border-border z-50">
                         <SelectItem value="0-1">0-1 years</SelectItem>
                         <SelectItem value="1-3">1-3 years</SelectItem>
                         <SelectItem value="3-5">3-5 years</SelectItem>
@@ -317,11 +317,11 @@ export default function ApplicationForm() {
             name="message"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Message</FormLabel>
+                <FormLabel className="text-foreground font-medium">Message</FormLabel>
                 <FormControl>
                   <Textarea 
                     {...field} 
-                    className="bg-input min-h-[100px]"
+                    className="bg-secondary/50 border-border min-h-[100px]"
                     placeholder="Tell us why you'd be a great fit..."
                   />
                 </FormControl>
@@ -336,10 +336,10 @@ export default function ApplicationForm() {
             name="cv_file"
             render={() => (
               <FormItem>
-                <FormLabel>Upload CV</FormLabel>
+                <FormLabel className="text-foreground font-medium">Upload CV</FormLabel>
                 <FormControl>
                   <div className="flex items-center gap-4">
-                    <label className="flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-md cursor-pointer hover:bg-secondary/80 transition-colors">
+                    <label className="flex items-center gap-2 px-6 py-3 bg-secondary/50 text-foreground border border-border rounded-md cursor-pointer hover:bg-secondary/70 transition-colors">
                       <Upload className="w-4 h-4" />
                       <span>Choose File</span>
                       <input
