@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import logo from "@/assets/talaadthai-logo.png";
@@ -39,6 +40,25 @@ const Login = () => {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'azure',
+        options: {
+          redirectTo: `${window.location.origin}/`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -85,6 +105,28 @@ const Login = () => {
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
+
+          <div className="relative my-6">
+            <Separator />
+            <span className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-card px-2 text-sm text-muted-foreground">
+              OR
+            </span>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full h-12 bg-white hover:bg-gray-50 text-foreground border-border hover:shadow-md transition-shadow"
+            onClick={handleMicrosoftLogin}
+          >
+            <svg className="w-5 h-5 mr-2" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="0" y="0" width="11" height="11" fill="#F25022"/>
+              <rect x="12" y="0" width="11" height="11" fill="#7FBA00"/>
+              <rect x="0" y="12" width="11" height="11" fill="#00A4EF"/>
+              <rect x="12" y="12" width="11" height="11" fill="#FFB900"/>
+            </svg>
+            Sign in with Microsoft
+          </Button>
         </div>
       </div>
     </div>
