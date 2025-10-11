@@ -12,7 +12,7 @@ const Index = () => {
       <header className="container mx-auto px-4 py-6">
         <div className="flex items-center justify-between">
           <div className="flex flex-col items-start">
-            <img src={logo} alt="TALAADTHAI" className="h-16 mb-10" />
+            <img src={logo} alt="TALAADTHAI" className="h-22 mb-10" />
           </div>
           <Button onClick={() => navigate("/login")} variant="default">
             Sign in
