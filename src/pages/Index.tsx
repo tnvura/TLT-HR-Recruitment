@@ -1,16 +1,27 @@
-import { Package } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
 import ApplicationForm from "@/components/ApplicationForm";
+import logo from "@/assets/talaadthai-logo.png";
 
 const Index = () => {
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="container mx-auto px-4 py-6 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <Package className="w-8 h-8 text-primary" />
-          <span className="text-2xl font-bold text-primary">TALAADTHAI</span>
+      <header className="container mx-auto px-4 py-6">
+        <div className="flex items-center justify-between">
+          <div className="flex flex-col items-start">
+            <img src={logo} alt="TALAADTHAI" className="h-16 mb-2" />
+            <div className="text-xl font-bold text-primary">CAREERS</div>
+          </div>
+          <Button 
+            onClick={() => navigate('/login')}
+            variant="default"
+          >
+            Sign in
+          </Button>
         </div>
-        <div className="text-xl font-bold text-primary">CAREERS</div>
       </header>
 
       {/* Hero Section */}
