@@ -46,14 +46,14 @@ const Login = () => {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
-        <img src={logo} alt="TALAADTHAI" className="h-16" />
+        <img src={logo} alt="TALAADTHAI" className="h-24 w-auto mb-2" />
       </header>
 
       {/* Login Form */}
       <div className="container mx-auto px-4 py-12 max-w-md">
         <div className="bg-card rounded-lg shadow-lg p-8">
           <h1 className="text-3xl font-bold text-center mb-8 text-foreground">Sign In</h1>
-          
+
           <form onSubmit={handleLogin} className="space-y-6">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
@@ -81,11 +81,7 @@ const Login = () => {
               />
             </div>
 
-            <Button
-              type="submit"
-              className="w-full h-12"
-              disabled={isLoading}
-            >
+            <Button type="submit" className="w-full h-12" disabled={isLoading}>
               {isLoading ? "Signing in..." : "Sign In"}
             </Button>
           </form>
