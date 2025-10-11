@@ -88,11 +88,8 @@ export default function ApplicationForm() {
           throw uploadError;
         }
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('CVS')
-          .getPublicUrl(filePath);
-
-        cvFileUrl = publicUrl;
+        // Store the file path (not public URL since bucket is private)
+        cvFileUrl = filePath;
         cvFileName = selectedFile.name;
       }
 
