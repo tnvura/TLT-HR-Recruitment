@@ -41,7 +41,7 @@ const Login = () => {
       console.log("Session:", data.session ? "EXISTS" : "MISSING");
 
       // Check if user has role
-      const { data: roleData, error: roleError } = await supabase
+      const { data: roleData, error: roleError } = await (supabase as any)
         .from("user_roles")
         .select("*")
         .eq("user_id", data.user.id)
