@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, Loader2 } from "lucide-react";
+import { Upload, Loader2, ArrowLeft } from "lucide-react";
+import logo from "@/assets/talaadthai-logo.png";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ACCEPTED_FILE_TYPES = ["application/pdf", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
@@ -38,6 +40,7 @@ const formSchema = z.object({
 type FormData = z.infer<typeof formSchema>;
 
 export default function ApplicationForm() {
+  const navigate = useNavigate();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const { toast } = useToast();
@@ -124,6 +127,9 @@ export default function ApplicationForm() {
 
       form.reset();
       setSelectedFile(null);
+      
+      // Redirect to candidates page
+      navigate('/candidates');
     } catch (error) {
       console.error('Error submitting application:', error);
       toast({
@@ -137,8 +143,21 @@ export default function ApplicationForm() {
   };
 
   return (
-    <div className="bg-card rounded-lg shadow-md p-8 max-w-3xl mx-auto">
-      <h2 className="text-3xl font-bold text-foreground mb-8">Submit Your Application</h2>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+          <img src={logo} alt="TalaadThai" className="h-24 w-auto mb-2" />
+          <Button variant="outline" onClick={() => navigate('/candidates')}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Candidates
+          </Button>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-8">
+        <div className="bg-card rounded-lg shadow-md p-8 max-w-3xl mx-auto">
+          <h2 className="text-3xl font-bold text-foreground mb-8">Submit Your Application</h2>
       
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -378,6 +397,8 @@ export default function ApplicationForm() {
           </div>
         </form>
       </Form>
+        </div>
+      </div>
     </div>
   );
 }
