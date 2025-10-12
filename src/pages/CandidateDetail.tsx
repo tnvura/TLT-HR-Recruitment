@@ -132,7 +132,6 @@ export default function CandidateDetail() {
         .update({
           status: newStatus,
           updated_by: user.id,
-          updated_by_email: userRole?.email,
         })
         .eq("id", id);
 
