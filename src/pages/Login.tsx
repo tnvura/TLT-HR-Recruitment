@@ -19,54 +19,6 @@ const Login = () => {
     e.preventDefault();
     setIsLoading(true);
 
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: "Logged in successfully",
-      });
-      navigate("/candidates");
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleMicrosoftLogin = async () => {
-    try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "azure",
-        options: {
-          redirectTo: `${window.location.origin}/candidates`,
-        },
-      });
-
-      if (error) throw error;
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    }
-  };
-
-  // In Login.tsx
-  const handleEmailLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-
     console.log("=== LOGIN ATTEMPT ===");
     console.log("Email:", email);
 
@@ -99,17 +51,47 @@ const Login = () => {
 
       if (!roleData) {
         console.error("❌ No role found for user");
+        console.error("   User ID:", data.user.id);
+        console.error("   User email:", data.user.email);
       } else {
         console.log("✅ User has role:", roleData.role);
       }
 
-      toast.success("Logged in successfully!");
+      toast({
+        title: "Success",
+        description: "Logged in successfully",
+      });
+
+      console.log("Navigating to /candidates...");
       navigate("/candidates");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error(error.message || "Failed to sign in");
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     } finally {
-      setLoading(false);
+      setIsLoading(false);
+    }
+  };
+
+  const handleMicrosoftLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "azure",
+        options: {
+          redirectTo: `${window.location.origin}/candidates`,
+        },
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
