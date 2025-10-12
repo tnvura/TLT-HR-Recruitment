@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,9 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Plus, Search, UserCircle2 } from "lucide-react";
+import { Eye, Plus, Search, UserCircle2, CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 import logo from "@/assets/talaadthai-logo.png";
 
 interface Candidate {
@@ -32,17 +36,38 @@ export default function Candidates() {
 
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [availablePositions, setAvailablePositions] = useState<string[]>([]);
   const [filters, setFilters] = useState({
     position: "",
     firstName: "",
     lastName: "",
-    dateFrom: "",
-    dateTo: "",
+    dateFrom: undefined as Date | undefined,
+    dateTo: undefined as Date | undefined,
   });
 
   useEffect(() => {
     fetchCandidates();
+    fetchAvailablePositions();
   }, []);
+
+  const fetchAvailablePositions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from("candidates")
+        .select("position_applied")
+        .order("position_applied");
+
+      if (error) throw error;
+
+      // Get unique positions
+      const uniquePositions = Array.from(
+        new Set(data?.map((c) => c.position_applied).filter(Boolean))
+      );
+      setAvailablePositions(uniquePositions);
+    } catch (error: any) {
+      console.error("Error fetching positions:", error);
+    }
+  };
 
   const fetchCandidates = async () => {
     try {
@@ -59,10 +84,10 @@ export default function Candidates() {
         query = query.ilike("last_name", `%${filters.lastName}%`);
       }
       if (filters.dateFrom) {
-        query = query.gte("created_at", filters.dateFrom);
+        query = query.gte("created_at", format(filters.dateFrom, "yyyy-MM-dd"));
       }
       if (filters.dateTo) {
-        query = query.lte("created_at", filters.dateTo);
+        query = query.lte("created_at", format(filters.dateTo, "yyyy-MM-dd"));
       }
 
       const { data, error } = await query;
@@ -125,12 +150,13 @@ export default function Candidates() {
                   <SelectTrigger id="position">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="bg-card border-border z-50">
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="Software Engineer">Software Engineer</SelectItem>
-                    <SelectItem value="Project Manager">Project Manager</SelectItem>
-                    <SelectItem value="Data Analyst">Data Analyst</SelectItem>
-                    <SelectItem value="Product Designer">Product Designer</SelectItem>
+                    {availablePositions.map((position) => (
+                      <SelectItem key={position} value={position}>
+                        {position}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -158,16 +184,53 @@ export default function Candidates() {
               <div>
                 <Label>Applied Date</Label>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input
-                    type="date"
-                    value={filters.dateFrom}
-                    onChange={(e) => setFilters({ ...filters, dateFrom: e.target.value })}
-                  />
-                  <Input
-                    type="date"
-                    value={filters.dateTo}
-                    onChange={(e) => setFilters({ ...filters, dateTo: e.target.value })}
-                  />
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !filters.dateFrom && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.dateFrom ? format(filters.dateFrom, "MM/dd/yyyy") : "From"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-card border-border z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filters.dateFrom}
+                        onSelect={(date) => setFilters({ ...filters, dateFrom: date })}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
+
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "justify-start text-left font-normal",
+                          !filters.dateTo && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {filters.dateTo ? format(filters.dateTo, "MM/dd/yyyy") : "To"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0 bg-card border-border z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={filters.dateTo}
+                        onSelect={(date) => setFilters({ ...filters, dateTo: date })}
+                        initialFocus
+                        className={cn("p-3 pointer-events-auto")}
+                      />
+                    </PopoverContent>
+                  </Popover>
                 </div>
               </div>
 
