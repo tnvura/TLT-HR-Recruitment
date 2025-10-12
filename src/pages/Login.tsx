@@ -31,7 +31,7 @@ const Login = () => {
         title: "Success",
         description: "Logged in successfully",
       });
-      navigate("/");
+      navigate("/candidates");
     } catch (error: any) {
       toast({
         title: "Error",
@@ -48,7 +48,7 @@ const Login = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'azure',
         options: {
-          redirectTo: `${window.location.origin}/`,
+          redirectTo: `${window.location.origin}/candidates`,
         },
       });
 
