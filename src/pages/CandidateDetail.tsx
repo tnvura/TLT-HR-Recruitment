@@ -1,11 +1,11 @@
-import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
-import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar } from 'lucide-react';
-import logo from '@/assets/talaadthai-logo.png';
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar } from "lucide-react";
+import logo from "@/assets/talaadthai-logo.png";
 
 interface Candidate {
   id: string;
@@ -41,7 +41,7 @@ export default function CandidateDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,9 +56,9 @@ export default function CandidateDetail() {
 
       // Fetch candidate details
       const { data: candidateData, error: candidateError } = await supabase
-        .from('candidates')
-        .select('*')
-        .eq('id', id)
+        .from("candidates")
+        .select("*")
+        .eq("id", id)
         .single();
 
       if (candidateError) throw candidateError;
@@ -66,18 +66,20 @@ export default function CandidateDetail() {
 
       // Fetch interviews
       const { data: interviewsData, error: interviewsError } = await (supabase as any)
-        .from('interviews')
-        .select('id, scheduled_date, scheduled_time, interviewer_name, interviewer_email, status, location, meeting_link, notes')
-        .eq('candidate_id', id)
-        .order('scheduled_date', { ascending: false });
+        .from("interviews")
+        .select(
+          "id, scheduled_date, scheduled_time, interviewer_name, interviewer_email, status, location, meeting_link, notes",
+        )
+        .eq("candidate_id", id)
+        .order("scheduled_date", { ascending: false });
 
       if (interviewsError) throw interviewsError;
       setInterviews(interviewsData || []);
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: "Error",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -97,7 +99,7 @@ export default function CandidateDetail() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-4">Candidate not found</h2>
-          <Button onClick={() => navigate('/candidates')}>Back to Candidates</Button>
+          <Button onClick={() => navigate("/candidates")}>Back to Candidates</Button>
         </div>
       </div>
     );
@@ -108,12 +110,12 @@ export default function CandidateDetail() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-6 py-4">
-          <img src={logo} alt="TalaadThai" className="h-8" />
+          <img src={logo} alt="TalaadThai" className="h-24 w-auto mb-2" />
         </div>
       </header>
 
       <div className="container mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate('/candidates')} className="mb-6">
+        <Button variant="ghost" onClick={() => navigate("/candidates")} className="mb-6">
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Candidates
         </Button>
@@ -157,7 +159,9 @@ export default function CandidateDetail() {
                 {candidate.education_level && (
                   <div className="flex items-center gap-2">
                     <GraduationCap className="h-4 w-4 text-muted-foreground" />
-                    <p>{candidate.education_level} - {candidate.institution}</p>
+                    <p>
+                      {candidate.education_level} - {candidate.institution}
+                    </p>
                   </div>
                 )}
 
@@ -171,7 +175,9 @@ export default function CandidateDetail() {
                 {candidate.current_position && (
                   <div>
                     <p className="text-sm text-muted-foreground">Current Position</p>
-                    <p className="font-medium">{candidate.current_position} at {candidate.current_employer}</p>
+                    <p className="font-medium">
+                      {candidate.current_position} at {candidate.current_employer}
+                    </p>
                   </div>
                 )}
 
@@ -203,23 +209,23 @@ export default function CandidateDetail() {
                       <div key={interview.id} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <p className="font-medium">{interview.interviewer_name}</p>
-                          <span className={`px-2 py-1 rounded text-xs ${
-                            interview.status === 'completed' ? 'bg-green-100 text-green-700' :
-                            interview.status === 'scheduled' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
+                          <span
+                            className={`px-2 py-1 rounded text-xs ${
+                              interview.status === "completed"
+                                ? "bg-green-100 text-green-700"
+                                : interview.status === "scheduled"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-gray-100 text-gray-700"
+                            }`}
+                          >
                             {interview.status}
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
                           {new Date(interview.scheduled_date).toLocaleDateString()} at {interview.scheduled_time}
                         </p>
-                        {interview.location && (
-                          <p className="text-sm mt-1">Location: {interview.location}</p>
-                        )}
-                        {interview.notes && (
-                          <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>
-                        )}
+                        {interview.location && <p className="text-sm mt-1">Location: {interview.location}</p>}
+                        {interview.notes && <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>}
                       </div>
                     ))}
                   </div>
@@ -238,13 +244,19 @@ export default function CandidateDetail() {
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">Current Status</p>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                      candidate.status === 'new' ? 'bg-blue-100 text-blue-700' :
-                      candidate.status === 'reviewing' ? 'bg-yellow-100 text-yellow-700' :
-                      candidate.status === 'interviewed' ? 'bg-purple-100 text-purple-700' :
-                      candidate.status === 'offered' ? 'bg-green-100 text-green-700' :
-                      'bg-gray-100 text-gray-700'
-                    }`}>
+                    <span
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        candidate.status === "new"
+                          ? "bg-blue-100 text-blue-700"
+                          : candidate.status === "reviewing"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : candidate.status === "interviewed"
+                              ? "bg-purple-100 text-purple-700"
+                              : candidate.status === "offered"
+                                ? "bg-green-100 text-green-700"
+                                : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
                       {candidate.status}
                     </span>
                   </div>
