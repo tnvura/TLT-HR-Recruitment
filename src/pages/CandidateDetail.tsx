@@ -32,8 +32,8 @@ interface Candidate {
 
 interface Interview {
   id: string;
-  scheduled_date: string;
-  scheduled_time: string;
+  interview_date: string;
+  interview_time: string;
   interviewer_name: string;
   interviewer_email: string;
   status: string;
@@ -87,10 +87,10 @@ export default function CandidateDetail() {
       const { data: interviewsData, error: interviewsError } = await (supabase as any)
         .from("interviews")
         .select(
-          "id, scheduled_date, scheduled_time, interviewer_name, interviewer_email, status, location, meeting_link, notes",
+          "id, interview_date, interview_time, interviewer_name, interviewer_email, status, location, meeting_link, notes",
         )
         .eq("candidate_id", id)
-        .order("scheduled_date", { ascending: false });
+        .order("interview_date", { ascending: false });
 
       if (interviewsError) throw interviewsError;
       setInterviews(interviewsData || []);
@@ -120,18 +120,13 @@ export default function CandidateDetail() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: userRole } = await (supabase as any)
-        .from("user_roles")
-        .select("email")
-        .eq("user_id", user.id)
-        .single();
-
       // Update candidate status
       const { error: updateError } = await supabase
         .from("candidates")
         .update({
           status: newStatus,
           updated_by: user.id,
+          updated_by_email: user.email,
         })
         .eq("id", id);
 
@@ -145,7 +140,7 @@ export default function CandidateDetail() {
           from_status: candidate?.status,
           to_status: newStatus,
           changed_by: user.id,
-          changed_by_email: userRole?.email,
+          changed_by_email: user.email,
         });
 
       toast({
@@ -349,7 +344,7 @@ export default function CandidateDetail() {
                           </span>
                         </div>
                         <p className="text-sm text-muted-foreground">
-                          {new Date(interview.scheduled_date).toLocaleDateString()} at {interview.scheduled_time}
+                          {new Date(interview.interview_date).toLocaleDateString()} at {interview.interview_time}
                         </p>
                         {interview.location && <p className="text-sm mt-1">Location: {interview.location}</p>}
                         {interview.notes && <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>}

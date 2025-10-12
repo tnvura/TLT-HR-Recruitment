@@ -33,12 +33,6 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: userRole } = await (supabase as any)
-        .from("user_roles")
-        .select("email")
-        .eq("user_id", user.id)
-        .single();
-
       // Insert job proposal
       const { error: proposalError } = await (supabase as any)
         .from("job_proposals")
@@ -52,7 +46,7 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
           offer_status: "pending",
           offer_sent_date: new Date().toISOString().split("T")[0],
           created_by: user.id,
-          created_by_email: userRole?.email,
+          created_by_email: user.email,
         });
 
       if (proposalError) throw proposalError;
@@ -70,7 +64,7 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
         .update({
           status: "offer",
           updated_by: user.id,
-          updated_by_email: userRole?.email,
+          updated_by_email: user.email,
         })
         .eq("id", candidateId);
 
@@ -84,7 +78,7 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
           from_status: candidate?.status,
           to_status: "offer",
           changed_by: user.id,
-          changed_by_email: userRole?.email,
+          changed_by_email: user.email,
           notes: "Job offer sent",
         });
 

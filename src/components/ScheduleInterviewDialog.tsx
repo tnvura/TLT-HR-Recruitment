@@ -35,12 +35,6 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: userRole } = await (supabase as any)
-        .from("user_roles")
-        .select("email")
-        .eq("user_id", user.id)
-        .single();
-
       // Insert interview
       const { error: interviewError } = await (supabase as any)
         .from("interviews")
@@ -55,7 +49,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
           notes: formData.notes,
           status: "scheduled",
           created_by: user.id,
-          created_by_email: userRole?.email,
+          created_by_email: user.email,
         });
 
       if (interviewError) throw interviewError;
@@ -73,7 +67,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
         .update({
           status: "interview",
           updated_by: user.id,
-          updated_by_email: userRole?.email,
+          updated_by_email: user.email,
         })
         .eq("id", candidateId);
 
@@ -87,7 +81,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
           from_status: candidate?.status,
           to_status: "interview",
           changed_by: user.id,
-          changed_by_email: userRole?.email,
+          changed_by_email: user.email,
           notes: "Interview scheduled",
         });
 
