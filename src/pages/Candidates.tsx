@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { supabase } from '@/integrations/supabase/client';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Card } from '@/components/ui/card';
-import { usePermissions } from '@/hooks/usePermissions';
-import { useToast } from '@/hooks/use-toast';
-import { Eye, Plus, Search, UserCircle2 } from 'lucide-react';
-import logo from '@/assets/talaadthai-logo.png';
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Card } from "@/components/ui/card";
+import { usePermissions } from "@/hooks/usePermissions";
+import { useToast } from "@/hooks/use-toast";
+import { Eye, Plus, Search, UserCircle2 } from "lucide-react";
+import logo from "@/assets/talaadthai-logo.png";
 
 interface Candidate {
   id: string;
@@ -29,15 +29,15 @@ export default function Candidates() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const permissions = usePermissions();
-  
+
   const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
-    position: '',
-    firstName: '',
-    lastName: '',
-    dateFrom: '',
-    dateTo: '',
+    position: "",
+    firstName: "",
+    lastName: "",
+    dateFrom: "",
+    dateTo: "",
   });
 
   useEffect(() => {
@@ -47,22 +47,22 @@ export default function Candidates() {
   const fetchCandidates = async () => {
     try {
       setIsLoading(true);
-      let query = supabase.from('candidates').select('*').order('created_at', { ascending: false });
+      let query = supabase.from("candidates").select("*").order("created_at", { ascending: false });
 
-      if (filters.position && filters.position !== 'all') {
-        query = query.ilike('position_applied', `%${filters.position}%`);
+      if (filters.position && filters.position !== "all") {
+        query = query.ilike("position_applied", `%${filters.position}%`);
       }
       if (filters.firstName) {
-        query = query.ilike('first_name', `%${filters.firstName}%`);
+        query = query.ilike("first_name", `%${filters.firstName}%`);
       }
       if (filters.lastName) {
-        query = query.ilike('last_name', `%${filters.lastName}%`);
+        query = query.ilike("last_name", `%${filters.lastName}%`);
       }
       if (filters.dateFrom) {
-        query = query.gte('created_at', filters.dateFrom);
+        query = query.gte("created_at", filters.dateFrom);
       }
       if (filters.dateTo) {
-        query = query.lte('created_at', filters.dateTo);
+        query = query.lte("created_at", filters.dateTo);
       }
 
       const { data, error } = await query;
@@ -71,9 +71,9 @@ export default function Candidates() {
       setCandidates(data || []);
     } catch (error: any) {
       toast({
-        title: 'Error',
+        title: "Error",
         description: error.message,
-        variant: 'destructive',
+        variant: "destructive",
       });
     } finally {
       setIsLoading(false);
@@ -89,12 +89,12 @@ export default function Candidates() {
   };
 
   const handleAddNew = () => {
-    navigate('/candidates/new');
+    navigate("/candidates/new");
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/login');
+    navigate("/login");
   };
 
   return (
@@ -102,7 +102,7 @@ export default function Candidates() {
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
-          <img src={logo} alt="TalaadThai" className="h-8" />
+          <img src={logo} alt="TalaadThai" className="h-24 w-auto mb-2" />
           <div className="flex items-center gap-4">
             <UserCircle2 className="h-8 w-8 text-muted-foreground" />
             <Button variant="outline" onClick={handleLogout}>
@@ -117,14 +117,11 @@ export default function Candidates() {
           {/* Filters Sidebar */}
           <Card className="p-6 h-fit">
             <h2 className="text-xl font-semibold mb-6">Filters</h2>
-            
+
             <div className="space-y-4">
               <div>
                 <Label htmlFor="position">Position Applied</Label>
-                <Select
-                  value={filters.position}
-                  onValueChange={(value) => setFilters({ ...filters, position: value })}
-                >
+                <Select value={filters.position} onValueChange={(value) => setFilters({ ...filters, position: value })}>
                   <SelectTrigger id="position">
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
@@ -185,7 +182,7 @@ export default function Candidates() {
           <div className="lg:col-span-3">
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-3xl font-bold">Candidates</h1>
-              {permissions.canCreate('candidates') && (
+              {permissions.canCreate("candidates") && (
                 <Button onClick={handleAddNew}>
                   <Plus className="mr-2 h-4 w-4" />
                   Add New Application
@@ -226,12 +223,10 @@ export default function Candidates() {
                         <TableCell>{index + 1}</TableCell>
                         <TableCell className="font-medium">{candidate.first_name}</TableCell>
                         <TableCell>{candidate.last_name}</TableCell>
-                        <TableCell>{candidate.phone_number || '-'}</TableCell>
+                        <TableCell>{candidate.phone_number || "-"}</TableCell>
                         <TableCell>{candidate.email}</TableCell>
                         <TableCell>{candidate.position_applied}</TableCell>
-                        <TableCell>
-                          {new Date(candidate.created_at).toLocaleDateString()}
-                        </TableCell>
+                        <TableCell>{new Date(candidate.created_at).toLocaleDateString()}</TableCell>
                         <TableCell>
                           <Button
                             variant="ghost"
