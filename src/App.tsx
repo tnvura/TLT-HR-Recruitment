@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Login from "./pages/Login";
 import Candidates from "./pages/Candidates";
 import CandidateDetail from "./pages/CandidateDetail";
+import ApplicationForm from "./components/ApplicationForm";
 import Unauthorized from "./pages/Unauthorized";
 import NotFound from "./pages/NotFound";
 
@@ -27,6 +28,14 @@ const App = () => (
             element={
               <ProtectedRoute allowedRoles={['hr_admin', 'hr_staff', 'interviewer']}>
                 <Candidates />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/candidates/new" 
+            element={
+              <ProtectedRoute allowedRoles={['hr_admin', 'hr_staff']}>
+                <ApplicationForm />
               </ProtectedRoute>
             } 
           />
