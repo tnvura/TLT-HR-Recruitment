@@ -49,7 +49,7 @@ export default function Candidates() {
       setIsLoading(true);
       let query = supabase.from('candidates').select('*').order('created_at', { ascending: false });
 
-      if (filters.position) {
+      if (filters.position && filters.position !== 'all') {
         query = query.ilike('position_applied', `%${filters.position}%`);
       }
       if (filters.firstName) {
@@ -129,7 +129,7 @@ export default function Candidates() {
                     <SelectValue placeholder="All" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All</SelectItem>
+                    <SelectItem value="all">All</SelectItem>
                     <SelectItem value="Software Engineer">Software Engineer</SelectItem>
                     <SelectItem value="Project Manager">Project Manager</SelectItem>
                     <SelectItem value="Data Analyst">Data Analyst</SelectItem>
