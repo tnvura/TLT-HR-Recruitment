@@ -6,6 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar } from "lucide-react";
 import logo from "@/assets/talaadthai-logo.png";
+import { usePermissions } from "@/hooks/usePermissions";
+import { StatusBadge } from "@/components/StatusBadge";
+import { ScheduleInterviewDialog } from "@/components/ScheduleInterviewDialog";
+import { SendOfferDialog } from "@/components/SendOfferDialog";
+import { StatusHistoryTimeline } from "@/components/StatusHistoryTimeline";
 
 interface Candidate {
   id: string;
@@ -37,14 +42,28 @@ interface Interview {
   notes: string;
 }
 
+interface StatusHistory {
+  id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_email: string;
+  changed_at: string;
+  notes: string;
+  reason: string;
+}
+
 export default function CandidateDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const permissions = usePermissions();
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
   const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
 
   useEffect(() => {
     fetchCandidateData();
@@ -75,6 +94,16 @@ export default function CandidateDetail() {
 
       if (interviewsError) throw interviewsError;
       setInterviews(interviewsData || []);
+
+      // Fetch status history
+      const { data: historyData, error: historyError } = await (supabase as any)
+        .from("status_history")
+        .select("*")
+        .eq("candidate_id", id)
+        .order("changed_at", { ascending: false });
+
+      if (historyError) throw historyError;
+      setStatusHistory(historyData || []);
     } catch (error: any) {
       toast({
         title: "Error",
@@ -84,6 +113,105 @@ export default function CandidateDetail() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      const { data: userRole } = await (supabase as any)
+        .from("user_roles")
+        .select("email")
+        .eq("user_id", user.id)
+        .single();
+
+      // Update candidate status
+      const { error: updateError } = await supabase
+        .from("candidates")
+        .update({
+          status: newStatus,
+          updated_by: user.id,
+          updated_by_email: userRole?.email,
+        })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      // Insert status history
+      await (supabase as any)
+        .from("status_history")
+        .insert({
+          candidate_id: id,
+          from_status: candidate?.status,
+          to_status: newStatus,
+          changed_by: user.id,
+          changed_by_email: userRole?.email,
+        });
+
+      toast({
+        title: "Success",
+        description: `Status updated to ${newStatus}`,
+      });
+
+      fetchCandidateData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusActions = () => {
+    if (!candidate) return [];
+
+    const canUpdate = permissions.canUpdate("candidates");
+    if (!canUpdate) return [];
+
+    const actions: Array<{ label: string; onClick: () => void; variant?: any }> = [];
+
+    switch (candidate.status) {
+      case "new":
+        actions.push(
+          { label: "Shortlist", onClick: () => handleStatusChange("shortlisted") },
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "shortlisted":
+        actions.push(
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "interview":
+        actions.push(
+          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "offer":
+        actions.push(
+          { label: "Mark as Hired", onClick: () => handleStatusChange("hired") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "on_hold":
+        actions.push(
+          { label: "Back to Shortlist", onClick: () => handleStatusChange("shortlisted") },
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+    }
+
+    return actions;
   };
 
   if (isLoading) {
@@ -234,48 +362,70 @@ export default function CandidateDetail() {
             </Card>
           </div>
 
-          {/* Status Card */}
-          <div>
+          {/* Status Management */}
+          <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Application Status</CardTitle>
+                <CardTitle>Status Management</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   <div>
                     <p className="text-sm text-muted-foreground mb-2">Current Status</p>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        candidate.status === "new"
-                          ? "bg-blue-100 text-blue-700"
-                          : candidate.status === "reviewing"
-                            ? "bg-yellow-100 text-yellow-700"
-                            : candidate.status === "interviewed"
-                              ? "bg-purple-100 text-purple-700"
-                              : candidate.status === "offered"
-                                ? "bg-green-100 text-green-700"
-                                : "bg-gray-100 text-gray-700"
-                      }`}
-                    >
-                      {candidate.status}
-                    </span>
+                    <StatusBadge status={candidate.status} />
                   </div>
 
-                  {candidate.cv_file_url && (
-                    <div>
-                      <Button className="w-full" variant="outline" asChild>
-                        <a href={candidate.cv_file_url} target="_blank" rel="noopener noreferrer">
-                          View CV
-                        </a>
-                      </Button>
+                  {getStatusActions().length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {getStatusActions().map((action, index) => (
+                        <Button
+                          key={index}
+                          variant={action.variant || "outline"}
+                          onClick={action.onClick}
+                          className="w-full"
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
                     </div>
                   )}
+
+                  {candidate.cv_file_url && (
+                    <Button className="w-full" variant="outline" asChild>
+                      <a href={candidate.cv_file_url} target="_blank" rel="noopener noreferrer">
+                        View CV
+                      </a>
+                    </Button>
+                  )}
                 </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Status History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <StatusHistoryTimeline history={statusHistory} />
               </CardContent>
             </Card>
           </div>
         </div>
       </div>
+
+      <ScheduleInterviewDialog
+        open={showScheduleDialog}
+        onOpenChange={setShowScheduleDialog}
+        candidateId={id!}
+        onSuccess={fetchCandidateData}
+      />
+
+      <SendOfferDialog
+        open={showOfferDialog}
+        onOpenChange={setShowOfferDialog}
+        candidateId={id!}
+        onSuccess={fetchCandidateData}
+      />
     </div>
   );
 }
