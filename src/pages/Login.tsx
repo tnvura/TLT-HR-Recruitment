@@ -46,7 +46,7 @@ const Login = () => {
   const handleMicrosoftLogin = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
-        provider: 'azure',
+        provider: "azure",
         options: {
           redirectTo: `${window.location.origin}/candidates`,
         },
@@ -59,6 +59,57 @@ const Login = () => {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  // In Login.tsx
+  const handleEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    console.log("=== LOGIN ATTEMPT ===");
+    console.log("Email:", email);
+
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      console.log("Login response:", { data, error });
+
+      if (error) {
+        console.error("❌ Login failed:", error);
+        throw error;
+      }
+
+      console.log("✅ Login successful");
+      console.log("User ID:", data.user?.id);
+      console.log("User email:", data.user?.email);
+      console.log("Session:", data.session ? "EXISTS" : "MISSING");
+
+      // Check if user has role
+      const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("*")
+        .eq("user_id", data.user.id)
+        .single();
+
+      console.log("User role check:", { roleData, roleError });
+
+      if (!roleData) {
+        console.error("❌ No role found for user");
+      } else {
+        console.log("✅ User has role:", roleData.role);
+      }
+
+      toast.success("Logged in successfully!");
+      navigate("/candidates");
+    } catch (error: any) {
+      console.error("Login error:", error);
+      toast.error(error.message || "Failed to sign in");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -120,10 +171,10 @@ const Login = () => {
             onClick={handleMicrosoftLogin}
           >
             <svg className="w-5 h-5 mr-2" viewBox="0 0 23 23" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect x="0" y="0" width="11" height="11" fill="#F25022"/>
-              <rect x="12" y="0" width="11" height="11" fill="#7FBA00"/>
-              <rect x="0" y="12" width="11" height="11" fill="#00A4EF"/>
-              <rect x="12" y="12" width="11" height="11" fill="#FFB900"/>
+              <rect x="0" y="0" width="11" height="11" fill="#F25022" />
+              <rect x="12" y="0" width="11" height="11" fill="#7FBA00" />
+              <rect x="0" y="12" width="11" height="11" fill="#00A4EF" />
+              <rect x="12" y="12" width="11" height="11" fill="#FFB900" />
             </svg>
             Sign in with Microsoft
           </Button>
