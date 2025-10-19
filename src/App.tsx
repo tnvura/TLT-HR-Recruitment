@@ -10,6 +10,9 @@ import Candidates from "./pages/Candidates";
 import CandidateDetail from "./pages/CandidateDetail";
 import ApplicationForm from "./components/ApplicationForm";
 import Unauthorized from "./pages/Unauthorized";
+import AccessPending from "./pages/AccessPending";
+import AuthCallback from "./pages/AuthCallback";
+import AdminUsers from "./pages/AdminUsers";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +26,9 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+          <Route path="/access-pending" element={<AccessPending />} />
+          <Route path="/unauthorized" element={<Unauthorized />} />
           <Route 
             path="/candidates" 
             element={
@@ -47,7 +53,14 @@ const App = () => (
               </ProtectedRoute>
             } 
           />
-          <Route path="/unauthorized" element={<Unauthorized />} />
+          <Route 
+            path="/admin/users" 
+            element={
+              <ProtectedRoute allowedRoles={['hr_admin']}>
+                <AdminUsers />
+              </ProtectedRoute>
+            } 
+          />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

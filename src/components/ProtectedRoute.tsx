@@ -47,7 +47,11 @@ export const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) 
     );
   }
 
-  if (!userRole || !allowedRoles.includes(userRole)) {
+  if (!userRole) {
+    return <Navigate to="/access-pending" replace />;
+  }
+
+  if (!allowedRoles.includes(userRole)) {
     return <Navigate to="/unauthorized" replace />;
   }
 
