@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ArrowLeft, UserPlus, UserCheck, UserX } from 'lucide-react';
 import { Switch } from '@/components/ui/switch';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function AdminUsers() {
   const navigate = useNavigate();
@@ -18,11 +19,18 @@ export default function AdminUsers() {
   const [isLoading, setIsLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
-  
+
   // Form state
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('');
   const [department, setDepartment] = useState('HR');
+
+  // Approval dialog state
+  const [showApprovalDialog, setShowApprovalDialog] = useState(false);
+  const [selectedPendingUser, setSelectedPendingUser] = useState<any>(null);
+  const [approvalRole, setApprovalRole] = useState('');
+  const [approvalDepartment, setApprovalDepartment] = useState('');
+  const [isApproving, setIsApproving] = useState(false);
 
   useEffect(() => {
     checkAccess();
@@ -50,10 +58,14 @@ export default function AdminUsers() {
   };
 
   const fetchUsers = async () => {
+    // Fetch ALL users from user_roles table
     const { data, error } = await (supabase as any)
       .from('user_roles')
       .select('*')
       .order('created_at', { ascending: false });
+
+    console.log('Fetched all users from user_roles:', data);
+    console.log('Fetch error:', error);
 
     if (error) {
       toast({
@@ -61,24 +73,23 @@ export default function AdminUsers() {
         description: "Failed to fetch users",
         variant: "destructive",
       });
-    } else {
-      setUsers(data || []);
+      return;
     }
+
+    // Separate users into approved (with actual role) and pending (role is 'pending')
+    const approved = data?.filter((u: any) => u.role && u.role !== 'pending') || [];
+    const pending = data?.filter((u: any) => u.role === 'pending' || u.role === null) || [];
+
+    console.log('Approved users:', approved);
+    console.log('Pending users:', pending);
+
+    setUsers(approved);
+    setPendingUsers(pending);
   };
 
   const fetchPendingUsers = async () => {
-    // Get all auth users
-    const { data: authUsers } = await supabase.auth.admin.listUsers();
-    
-    // Get all users with roles
-    const { data: rolesData } = await (supabase as any)
-      .from('user_roles')
-      .select('user_id');
-
-    const userIdsWithRoles = new Set(rolesData?.map((r: any) => r.user_id) || []);
-    
-    const pending = authUsers?.users.filter((u: any) => !userIdsWithRoles.has(u.id)) || [];
-    setPendingUsers(pending);
+    // This is now handled in fetchUsers()
+    // Keeping this function for compatibility but it does nothing
   };
 
   const handleAddUser = async (e: React.FormEvent) => {
@@ -139,6 +150,65 @@ export default function AdminUsers() {
         description: error.message,
         variant: "destructive",
       });
+    }
+  };
+
+  const openApprovalDialog = (user: any) => {
+    setSelectedPendingUser(user);
+    setApprovalRole('');
+    setApprovalDepartment('');
+    setShowApprovalDialog(true);
+  };
+
+  const handleApproveUser = async () => {
+    if (!selectedPendingUser || !approvalRole) {
+      toast({
+        title: "Error",
+        description: "Please select a role",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!approvalDepartment) {
+      toast({
+        title: "Error",
+        description: "Please enter a department",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsApproving(true);
+
+    try {
+      const { error } = await (supabase as any)
+        .from('user_roles')
+        .update({
+          role: approvalRole,
+          department: approvalDepartment,
+          is_active: true,
+        })
+        .eq('id', selectedPendingUser.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `User ${selectedPendingUser.email} approved as ${approvalRole}`,
+      });
+
+      setShowApprovalDialog(false);
+      setSelectedPendingUser(null);
+      fetchUsers();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsApproving(false);
     }
   };
 
@@ -228,6 +298,7 @@ export default function AdminUsers() {
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Logged In</TableHead>
+                      <TableHead>Action</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -235,6 +306,14 @@ export default function AdminUsers() {
                       <TableRow key={user.id}>
                         <TableCell>{user.email}</TableCell>
                         <TableCell>{new Date(user.created_at).toLocaleDateString()}</TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            onClick={() => openApprovalDialog(user)}
+                          >
+                            Approve
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -300,6 +379,61 @@ export default function AdminUsers() {
           </Card>
         </div>
       </div>
+
+      {/* Approval Dialog */}
+      <Dialog open={showApprovalDialog} onOpenChange={setShowApprovalDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Approve User Access</DialogTitle>
+            <DialogDescription>
+              Assign a role and department to {selectedPendingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="approval-role">Role *</Label>
+              <Select value={approvalRole} onValueChange={setApprovalRole}>
+                <SelectTrigger id="approval-role">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="hr_admin">HR Admin</SelectItem>
+                  <SelectItem value="hr_staff">HR Staff</SelectItem>
+                  <SelectItem value="interviewer">Interviewer</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="approval-department">Department *</Label>
+              <Input
+                id="approval-department"
+                value={approvalDepartment}
+                onChange={(e) => setApprovalDepartment(e.target.value)}
+                placeholder="e.g., HR, IT, Sales"
+                required
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowApprovalDialog(false)}
+              disabled={isApproving}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleApproveUser}
+              disabled={isApproving || !approvalRole || !approvalDepartment}
+            >
+              {isApproving ? 'Approving...' : 'Approve User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

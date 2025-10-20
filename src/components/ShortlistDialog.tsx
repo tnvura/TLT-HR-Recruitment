@@ -7,21 +7,19 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-interface SendOfferDialogProps {
+interface ShortlistDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   candidateId: string;
   onSuccess: () => void;
 }
 
-export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: SendOfferDialogProps) {
+export function ShortlistDialog({ open, onOpenChange, candidateId, onSuccess }: ShortlistDialogProps) {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    position_offered: "",
-    job_grade: "",
-    salary_offered: "",
-    start_date: "",
+    interviewer_name: "",
+    interviewer_email: "",
     notes: "",
   });
 
@@ -33,24 +31,6 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Insert job proposal
-      const { error: proposalError } = await (supabase as any)
-        .from("job_proposals")
-        .insert({
-          candidate_id: candidateId,
-          position_offered: formData.position_offered,
-          job_grade: formData.job_grade,
-          salary_offered: formData.salary_offered ? parseFloat(formData.salary_offered) : null,
-          start_date: formData.start_date,
-          notes: formData.notes,
-          offer_status: "pending",
-          offer_sent_date: new Date().toISOString().split("T")[0],
-          created_by: user.id,
-          created_by_email: user.email,
-        });
-
-      if (proposalError) throw proposalError;
-
       // Get current status
       const { data: candidate } = await supabase
         .from("candidates")
@@ -58,11 +38,11 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
         .eq("id", candidateId)
         .single();
 
-      // Update candidate status
+      // Update candidate status to shortlisted
       const { error: updateError } = await supabase
         .from("candidates")
         .update({
-          status: "offer_sent",
+          status: "shortlisted",
           updated_by: user.id,
           updated_by_email: user.email,
         })
@@ -71,29 +51,50 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
       if (updateError) throw updateError;
 
       // Insert status history
-      await (supabase as any)
+      const { error: historyError } = await (supabase as any)
         .from("status_history")
         .insert({
           candidate_id: candidateId,
           from_status: candidate?.status,
-          to_status: "offer_sent",
+          to_status: "shortlisted",
           changed_by: user.id,
           changed_by_email: user.email,
-          notes: "Job offer sent",
+          notes: formData.notes || "Candidate shortlisted and assigned to interviewer",
         });
+
+      if (historyError) {
+        console.error("History insert error:", historyError);
+        throw new Error(`Failed to create status history: ${historyError.message}`);
+      }
+
+      // Create candidate assignment for interviewer
+      const { error: assignmentError } = await (supabase as any)
+        .from("candidate_assignments")
+        .insert({
+          candidate_id: candidateId,
+          interviewer_name: formData.interviewer_name,
+          interviewer_email: formData.interviewer_email,
+          assigned_by: user.id,
+          assigned_by_email: user.email,
+          status: "pending",
+          notes: formData.notes || null,
+        });
+
+      if (assignmentError) {
+        console.error("Assignment insert error:", assignmentError);
+        throw new Error(`Failed to assign interviewer: ${assignmentError.message}`);
+      }
 
       toast({
         title: "Success",
-        description: "Job offer sent successfully",
+        description: "Candidate shortlisted and assigned to interviewer",
       });
 
       onSuccess();
       onOpenChange(false);
       setFormData({
-        position_offered: "",
-        job_grade: "",
-        salary_offered: "",
-        start_date: "",
+        interviewer_name: "",
+        interviewer_email: "",
         notes: "",
       });
     } catch (error: any) {
@@ -111,56 +112,46 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Send Job Offer</DialogTitle>
+          <DialogTitle>Shortlist Candidate</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="position_offered">Position Offered *</Label>
+              <Label htmlFor="interviewer_name">Interviewer Name *</Label>
               <Input
-                id="position_offered"
+                id="interviewer_name"
                 required
-                value={formData.position_offered}
-                onChange={(e) => setFormData({ ...formData, position_offered: e.target.value })}
+                value={formData.interviewer_name}
+                onChange={(e) => setFormData({ ...formData, interviewer_name: e.target.value })}
+                placeholder="Enter interviewer name"
               />
             </div>
             <div>
-              <Label htmlFor="job_grade">Job Grade</Label>
+              <Label htmlFor="interviewer_email">Interviewer Email *</Label>
               <Input
-                id="job_grade"
-                value={formData.job_grade}
-                onChange={(e) => setFormData({ ...formData, job_grade: e.target.value })}
-                placeholder="e.g., Senior, Junior, Lead"
+                id="interviewer_email"
+                type="email"
+                required
+                value={formData.interviewer_email}
+                onChange={(e) => setFormData({ ...formData, interviewer_email: e.target.value })}
+                placeholder="interviewer@company.com"
               />
             </div>
             <div>
-              <Label htmlFor="salary_offered">Salary Offered</Label>
-              <Input
-                id="salary_offered"
-                type="number"
-                step="0.01"
-                value={formData.salary_offered}
-                onChange={(e) => setFormData({ ...formData, salary_offered: e.target.value })}
-                placeholder="Annual salary"
-              />
-            </div>
-            <div>
-              <Label htmlFor="start_date">Start Date</Label>
-              <Input
-                id="start_date"
-                type="date"
-                value={formData.start_date}
-                onChange={(e) => setFormData({ ...formData, start_date: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="notes">Notes</Label>
+              <Label htmlFor="notes">Notes (Optional)</Label>
               <Textarea
                 id="notes"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional details or benefits"
+                placeholder="Additional notes for the interviewer"
+                rows={3}
               />
+            </div>
+            <div className="text-sm text-muted-foreground bg-blue-50 p-3 rounded-md">
+              <p>
+                The interviewer will receive access to review this candidate and provide feedback
+                for the interview decision.
+              </p>
             </div>
           </div>
           <DialogFooter className="mt-6">
@@ -168,7 +159,7 @@ export function SendOfferDialog({ open, onOpenChange, candidateId, onSuccess }: 
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? "Sending..." : "Send Offer"}
+              {isSubmitting ? "Processing..." : "Shortlist & Assign"}
             </Button>
           </DialogFooter>
         </form>

@@ -12,7 +12,7 @@ export default function AuthCallback() {
     const checkUserRole = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
-        
+
         if (!user) {
           navigate('/login');
           return;
@@ -23,10 +23,31 @@ export default function AuthCallback() {
           .from('user_roles')
           .select('role, is_active')
           .eq('user_id', user.id)
-          .eq('is_active', true)
           .maybeSingle();
 
         if (!roleData) {
+          // User doesn't have a role record - create a pending one
+          console.log('Creating pending user_roles record for:', user.email);
+          console.log('User ID:', user.id);
+
+          const { data: insertData, error: insertError } = await (supabase as any)
+            .from('user_roles')
+            .insert({
+              user_id: user.id,
+              email: user.email,
+              role: 'pending',
+              is_active: false,
+              department: null,
+            })
+            .select();
+
+          if (insertError) {
+            console.error('❌ Error creating user_roles record:', insertError);
+            console.error('Error details:', JSON.stringify(insertError, null, 2));
+          } else {
+            console.log('✅ Successfully created user_roles record:', insertData);
+          }
+
           // User not approved yet
           toast({
             title: "Account Pending Approval",
@@ -34,8 +55,16 @@ export default function AuthCallback() {
             variant: "destructive",
           });
           navigate('/access-pending');
+        } else if (!roleData.is_active) {
+          // User exists but not active
+          toast({
+            title: "Account Pending Approval",
+            description: "Your account needs HR approval. Please contact hr.admin@talaadthai.com",
+            variant: "destructive",
+          });
+          navigate('/access-pending');
         } else {
-          // User has role, proceed to candidates page
+          // User has active role, proceed to candidates page
           toast({
             title: "Success",
             description: "Logged in successfully",

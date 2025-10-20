@@ -65,7 +65,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
       const { error: updateError } = await supabase
         .from("candidates")
         .update({
-          status: "interview",
+          status: "interview_scheduled",
           updated_by: user.id,
           updated_by_email: user.email,
         })
@@ -79,7 +79,7 @@ export function ScheduleInterviewDialog({ open, onOpenChange, candidateId, onSuc
         .insert({
           candidate_id: candidateId,
           from_status: candidate?.status,
-          to_status: "interview",
+          to_status: "interview_scheduled",
           changed_by: user.id,
           changed_by_email: user.email,
           notes: "Interview scheduled",

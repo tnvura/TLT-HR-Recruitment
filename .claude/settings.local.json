@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Read(//c/Users/thanavatu/Desktop/Claude Project/**)",
+      "Bash(npm run dev)",
+      "Bash(claude mcp list)",
+      "WebFetch(domain:mcp.supabase.com)",
+      "mcp__github__search_repositories"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

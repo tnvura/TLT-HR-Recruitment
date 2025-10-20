@@ -4,13 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar, FileText } from "lucide-react";
 import logo from "@/assets/talaadthai-logo.png";
 import { usePermissions } from "@/hooks/usePermissions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { ScheduleInterviewDialog } from "@/components/ScheduleInterviewDialog";
 import { SendOfferDialog } from "@/components/SendOfferDialog";
+import { ShortlistDialog } from "@/components/ShortlistDialog";
 import { StatusHistoryTimeline } from "@/components/StatusHistoryTimeline";
+import { InterviewerInfo } from "@/components/InterviewerInfo";
 
 interface Candidate {
   id: string;
@@ -64,6 +66,8 @@ export default function CandidateDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [showOfferDialog, setShowOfferDialog] = useState(false);
+  const [showShortlistDialog, setShowShortlistDialog] = useState(false);
+  const [cvUrl, setCvUrl] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCandidateData();
@@ -82,6 +86,17 @@ export default function CandidateDetail() {
 
       if (candidateError) throw candidateError;
       setCandidate(candidateData);
+
+      // Generate signed URL for CV if it exists
+      if (candidateData?.cv_file_url) {
+        const { data: signedUrlData } = await supabase.storage
+          .from('CVS')
+          .createSignedUrl(candidateData.cv_file_url, 3600); // URL valid for 1 hour
+
+        if (signedUrlData?.signedUrl) {
+          setCvUrl(signedUrlData.signedUrl);
+        }
+      }
 
       // Fetch interviews
       const { data: interviewsData, error: interviewsError } = await (supabase as any)
@@ -169,7 +184,7 @@ export default function CandidateDetail() {
     switch (candidate.status) {
       case "new":
         actions.push(
-          { label: "Shortlist", onClick: () => handleStatusChange("shortlisted") },
+          { label: "Shortlist", onClick: () => setShowShortlistDialog(true) },
           { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
           { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
@@ -178,28 +193,40 @@ export default function CandidateDetail() {
       case "shortlisted":
         actions.push(
           { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
-          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
           { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
         break;
-      case "interview":
+      case "interview_scheduled":
+        actions.push(
+          { label: "Mark as Interviewed", onClick: () => handleStatusChange("interviewed") },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "interviewed":
         actions.push(
           { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
           { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
         break;
-      case "offer":
+      case "offer_sent":
         actions.push(
-          { label: "Mark as Hired", onClick: () => handleStatusChange("hired") },
-          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+          { label: "Mark Offer Accepted", onClick: () => handleStatusChange("offer_accepted") },
+          { label: "Mark Offer Rejected", onClick: () => handleStatusChange("offer_rejected"), variant: "destructive" }
+        );
+        break;
+      case "offer_accepted":
+        actions.push(
+          { label: "Mark as Hired", onClick: () => handleStatusChange("hired") }
         );
         break;
       case "on_hold":
         actions.push(
           { label: "Back to Shortlist", onClick: () => handleStatusChange("shortlisted") },
           { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
         break;
@@ -314,8 +341,25 @@ export default function CandidateDetail() {
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <p>Applied on {new Date(candidate.created_at).toLocaleDateString()}</p>
                 </div>
+
+                {cvUrl && permissions.canRead("candidates") && (
+                  <div className="pt-2 border-t">
+                    <a
+                      href={cvUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>View CV/Resume</span>
+                    </a>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            {/* Interviewer Information */}
+            <InterviewerInfo candidateId={id!} />
 
             {/* Interviews */}
             <Card>
@@ -360,7 +404,7 @@ export default function CandidateDetail() {
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Status Management</CardTitle>
+                <CardTitle>Candidate Status</CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -382,14 +426,6 @@ export default function CandidateDetail() {
                         </Button>
                       ))}
                     </div>
-                  )}
-
-                  {candidate.cv_file_url && (
-                    <Button className="w-full" variant="outline" asChild>
-                      <a href={candidate.cv_file_url} target="_blank" rel="noopener noreferrer">
-                        View CV
-                      </a>
-                    </Button>
                   )}
                 </div>
               </CardContent>
@@ -417,6 +453,13 @@ export default function CandidateDetail() {
       <SendOfferDialog
         open={showOfferDialog}
         onOpenChange={setShowOfferDialog}
+        candidateId={id!}
+        onSuccess={fetchCandidateData}
+      />
+
+      <ShortlistDialog
+        open={showShortlistDialog}
+        onOpenChange={setShowShortlistDialog}
         candidateId={id!}
         onSuccess={fetchCandidateData}
       />

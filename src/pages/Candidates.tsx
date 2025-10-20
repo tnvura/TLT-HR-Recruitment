@@ -12,7 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, Plus, Search, UserCircle2, CalendarIcon } from "lucide-react";
+import { Eye, Plus, Search, UserCircle2, CalendarIcon, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import logo from "@/assets/talaadthai-logo.png";
 
@@ -43,12 +43,13 @@ export default function Candidates() {
     lastName: "",
     dateFrom: undefined as Date | undefined,
     dateTo: undefined as Date | undefined,
+    statusFilter: "all" as string,
   });
 
   useEffect(() => {
     fetchCandidates();
     fetchAvailablePositions();
-  }, []);
+  }, [filters.statusFilter]);
 
   const fetchAvailablePositions = async () => {
     try {
@@ -90,6 +91,22 @@ export default function Candidates() {
         query = query.lte("created_at", format(filters.dateTo, "yyyy-MM-dd"));
       }
 
+      // Status filter
+      if (filters.statusFilter && filters.statusFilter !== "all") {
+        const statusMap: { [key: string]: string[] } = {
+          new: ["new"],
+          shortlisted: ["shortlisted"],
+          interview: ["interview_scheduled", "interviewed"],
+          offer: ["offer_sent"],
+          hired: ["offer_accepted", "hired"],
+          rejected: ["rejected", "offer_rejected"],
+        };
+        const statuses = statusMap[filters.statusFilter];
+        if (statuses) {
+          query = query.in("status", statuses);
+        }
+      }
+
       const { data, error } = await query;
 
       if (error) throw error;
@@ -129,7 +146,18 @@ export default function Candidates() {
         <div className="container mx-auto px-6 py-4 flex items-center justify-between">
           <img src={logo} alt="TalaadThai" className="h-24 w-auto mb-2" />
           <div className="flex items-center gap-4">
-            <UserCircle2 className="h-8 w-8 text-muted-foreground" />
+            {permissions.isHRAdmin ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => navigate("/admin/users")}
+                className="h-10 w-10"
+              >
+                <Settings className="h-6 w-6 text-muted-foreground" />
+              </Button>
+            ) : (
+              <UserCircle2 className="h-8 w-8 text-muted-foreground" />
+            )}
             <Button variant="outline" onClick={handleLogout}>
               Logout
             </Button>
@@ -243,6 +271,52 @@ export default function Candidates() {
 
           {/* Main Content */}
           <div className="lg:col-span-3">
+            {/* Status Filter Buttons */}
+            <div className="mb-6 flex flex-wrap gap-2">
+              <Button
+                variant={filters.statusFilter === "all" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "all" })}
+              >
+                All
+              </Button>
+              <Button
+                variant={filters.statusFilter === "new" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "new" })}
+              >
+                New
+              </Button>
+              <Button
+                variant={filters.statusFilter === "shortlisted" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "shortlisted" })}
+              >
+                Shortlist
+              </Button>
+              <Button
+                variant={filters.statusFilter === "interview" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "interview" })}
+              >
+                Interview
+              </Button>
+              <Button
+                variant={filters.statusFilter === "offer" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "offer" })}
+              >
+                Offer
+              </Button>
+              <Button
+                variant={filters.statusFilter === "hired" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "hired" })}
+              >
+                Hired
+              </Button>
+              <Button
+                variant={filters.statusFilter === "rejected" ? "default" : "outline"}
+                onClick={() => setFilters({ ...filters, statusFilter: "rejected" })}
+              >
+                Rejected
+              </Button>
+            </div>
+
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-3xl font-bold">Candidates</h1>
               {permissions.canCreate("candidates") && (
