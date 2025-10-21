@@ -1,22 +1,16 @@
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import ApplicationForm from "@/components/ApplicationForm";
+import PublicApplicationForm from "@/components/PublicApplicationForm";
 import logo from "@/assets/talaadthai-logo.png";
 
 const Index = () => {
-  const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="container mx-auto px-4 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center">
           <div className="flex flex-col items-start">
             <img src={logo} alt="TALAADTHAI" className="h-24 w-auto mb-2" />
           </div>
-          <Button onClick={() => navigate("/login")} variant="default">
-            Sign in
-          </Button>
         </div>
       </header>
 
@@ -25,12 +19,15 @@ const Index = () => {
         <div className="text-center mb-12">
           <h1 className="text-5xl font-bold text-foreground mb-6">Join Our Team</h1>
           <p className="text-lg text-foreground/80 leading-relaxed max-w-2xl mx-auto">
-            We're looking for talented individuals to join our company. Fill out the form below to apply!
+            We're looking for talented individuals to join our company. 
+          </p>
+          <p className="text-lg text-foreground/80 leading-relaxed max-w-2xl mx-auto">
+            Fill out the form below to apply!
           </p>
         </div>
 
         {/* Application Form */}
-        <ApplicationForm />
+        <PublicApplicationForm />
       </section>
 
       {/* Footer */}
