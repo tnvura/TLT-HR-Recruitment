@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { emailNotifications } from "@/services/emailNotifications";
 
 interface ShortlistDialogProps {
   open: boolean;
@@ -31,12 +32,15 @@ export function ShortlistDialog({ open, onOpenChange, candidateId, onSuccess }: 
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get current status
-      const { data: candidate } = await supabase
+      // Get current candidate data (including status and full details)
+      const { data: candidateData, error: candidateError } = await supabase
         .from("candidates")
-        .select("status")
+        .select("*")
         .eq("id", candidateId)
         .single();
+
+      if (candidateError) throw candidateError;
+      if (!candidateData) throw new Error("Candidate not found");
 
       // Update candidate status to shortlisted
       const { error: updateError } = await supabase
@@ -55,7 +59,7 @@ export function ShortlistDialog({ open, onOpenChange, candidateId, onSuccess }: 
         .from("status_history")
         .insert({
           candidate_id: candidateId,
-          from_status: candidate?.status,
+          from_status: candidateData.status,
           to_status: "shortlisted",
           changed_by: user.id,
           changed_by_email: user.email,
@@ -84,6 +88,15 @@ export function ShortlistDialog({ open, onOpenChange, candidateId, onSuccess }: 
         console.error("Assignment insert error:", assignmentError);
         throw new Error(`Failed to assign interviewer: ${assignmentError.message}`);
       }
+
+      // Send email notification to interviewer
+      await emailNotifications.notifyCandidateAssigned(
+        candidateId,
+        formData.interviewer_email,
+        formData.interviewer_name,
+        user.email!,
+        candidateData
+      );
 
       toast({
         title: "Success",

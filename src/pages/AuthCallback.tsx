@@ -64,12 +64,17 @@ export default function AuthCallback() {
           });
           navigate('/access-pending');
         } else {
-          // User has active role, proceed to candidates page
+          // User has active role, redirect based on role
           toast({
             title: "Success",
             description: "Logged in successfully",
           });
-          navigate('/candidates');
+
+          if (roleData.role === 'interviewer') {
+            navigate('/interviewer/dashboard');
+          } else {
+            navigate('/candidates');
+          }
         }
       } catch (error) {
         console.error('Error checking user role:', error);

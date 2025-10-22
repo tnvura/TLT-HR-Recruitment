@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Mail, User, Edit2, X, Check } from "lucide-react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { emailNotifications } from "@/services/emailNotifications";
 
 interface InterviewerInfoProps {
   candidateId: string;
@@ -40,7 +41,6 @@ export function InterviewerInfo({ candidateId }: InterviewerInfoProps) {
   const fetchAssignment = async () => {
     try {
       setIsLoading(true);
-      console.log("Fetching assignment for candidate:", candidateId);
 
       const { data, error } = await (supabase as any)
         .from("candidate_assignments")
@@ -50,13 +50,8 @@ export function InterviewerInfo({ candidateId }: InterviewerInfoProps) {
         .limit(1)
         .maybeSingle();
 
-      console.log("Assignment query result:", { data, error });
-
       if (error) {
         console.error("Assignment fetch error:", error);
-        console.error("Error details:", JSON.stringify(error, null, 2));
-        // Don't throw error, just log it and continue
-        // throw error;
       }
 
       setAssignment(data);
@@ -66,9 +61,6 @@ export function InterviewerInfo({ candidateId }: InterviewerInfoProps) {
           interviewer_name: data.interviewer_name,
           interviewer_email: data.interviewer_email,
         });
-        console.log("Assignment data loaded:", data);
-      } else {
-        console.log("No assignment found for candidate:", candidateId);
       }
     } catch (error: any) {
       console.error("Error fetching assignment:", error);
@@ -100,22 +92,116 @@ export function InterviewerInfo({ candidateId }: InterviewerInfoProps) {
   const handleSave = async () => {
     if (!assignment) return;
 
+    // Check if interviewer actually changed
+    const interviewerChanged =
+      assignment.interviewer_email !== editForm.interviewer_email ||
+      assignment.interviewer_name !== editForm.interviewer_name;
+
     try {
       setIsSaving(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Update the assignment
-      const { error: updateError } = await (supabase as any)
-        .from("candidate_assignments")
-        .update({
-          interviewer_name: editForm.interviewer_name,
-          interviewer_email: editForm.interviewer_email,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", assignment.id);
+      if (interviewerChanged) {
+        // Check if there's an existing scheduled interview
+        const { data: existingInterview } = await (supabase as any)
+          .from("interviews")
+          .select("*")
+          .eq("candidate_id", candidateId)
+          .eq("status", "scheduled")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (updateError) throw updateError;
+        // If there's a scheduled interview, handle interview reassignment
+        if (existingInterview && existingInterview.interviewer_email === assignment.interviewer_email) {
+          // 1. Cancel old interview
+          const { error: cancelError } = await (supabase as any)
+            .from("interviews")
+            .update({ status: "cancelled" })
+            .eq("id", existingInterview.id);
+
+          if (cancelError) throw cancelError;
+
+          // 2. Create new interview with new interviewer (same schedule details)
+          const { error: newInterviewError } = await (supabase as any)
+            .from("interviews")
+            .insert({
+              candidate_id: candidateId,
+              interviewer_email: editForm.interviewer_email,
+              interviewer_name: editForm.interviewer_name,
+              interview_date: existingInterview.interview_date,
+              interview_time: existingInterview.interview_time,
+              location: existingInterview.location,
+              meeting_link: existingInterview.meeting_link,
+              notes: existingInterview.notes,
+              status: "scheduled",
+              created_by: user.id,
+              created_by_email: user.email,
+            });
+
+          if (newInterviewError) throw newInterviewError;
+        }
+
+        // Deactivate old assignment
+        await (supabase as any)
+          .from("candidate_assignments")
+          .update({ is_active: false })
+          .eq("id", assignment.id);
+
+        // Create new assignment
+        await (supabase as any)
+          .from("candidate_assignments")
+          .insert({
+            candidate_id: candidateId,
+            interviewer_name: editForm.interviewer_name,
+            interviewer_email: editForm.interviewer_email,
+            assigned_by: user.id,
+            assigned_by_email: user.email,
+            status: "pending",
+            is_active: true,
+          });
+
+        // Fetch candidate data for email and status
+        const { data: candidateData, error: candidateError } = await supabase
+          .from("candidates")
+          .select("*")
+          .eq("id", candidateId)
+          .single();
+
+        if (candidateData) {
+          // Log the interviewer change in status history
+          await (supabase as any)
+            .from("status_history")
+            .insert({
+              candidate_id: candidateId,
+              from_status: candidateData.status,
+              to_status: candidateData.status,
+              changed_by: user.id,
+              changed_by_email: user.email,
+              notes: `Interviewer changed from ${assignment.interviewer_name} (${assignment.interviewer_email}) to ${editForm.interviewer_name} (${editForm.interviewer_email})`,
+            });
+
+          // Send email notifications to both old and new interviewer
+          await emailNotifications.notifyInterviewerChanged(
+            candidateId,
+            assignment.interviewer_email,
+            assignment.interviewer_name,
+            editForm.interviewer_email,
+            editForm.interviewer_name,
+            user.email!,
+            candidateData
+          );
+        }
+      } else {
+        // Just update the notes if no interviewer change
+        await (supabase as any)
+          .from("candidate_assignments")
+          .update({
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", assignment.id);
+      }
 
       toast({
         title: "Success",

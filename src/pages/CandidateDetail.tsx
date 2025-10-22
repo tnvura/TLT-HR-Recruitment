@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar, FileText } from "lucide-react";
+import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar, FileText, ExternalLink } from "lucide-react";
 import logo from "@/assets/talaadthai-logo.png";
 import { usePermissions } from "@/hooks/usePermissions";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -13,6 +13,8 @@ import { SendOfferDialog } from "@/components/SendOfferDialog";
 import { ShortlistDialog } from "@/components/ShortlistDialog";
 import { StatusHistoryTimeline } from "@/components/StatusHistoryTimeline";
 import { InterviewerInfo } from "@/components/InterviewerInfo";
+import { OfferApprovalSection } from "@/components/OfferApprovalSection";
+import { emailNotifications } from "@/services/emailNotifications";
 
 interface Candidate {
   id: string;
@@ -42,6 +44,8 @@ interface Interview {
   location: string;
   meeting_link: string;
   notes: string;
+  feedback_id?: string;
+  has_feedback?: boolean;
 }
 
 interface StatusHistory {
@@ -61,13 +65,17 @@ export default function CandidateDetail() {
   const permissions = usePermissions();
 
   const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [assignment, setAssignment] = useState<{ interviewer_name: string; interviewer_email: string } | null>(null);
   const [interviews, setInterviews] = useState<Interview[]>([]);
   const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
+  const [jobProposal, setJobProposal] = useState<any>(null);
+  const [interviewFeedback, setInterviewFeedback] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showScheduleDialog, setShowScheduleDialog] = useState(false);
   const [showOfferDialog, setShowOfferDialog] = useState(false);
   const [showShortlistDialog, setShowShortlistDialog] = useState(false);
   const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
 
   useEffect(() => {
     fetchCandidateData();
@@ -78,13 +86,41 @@ export default function CandidateDetail() {
       setIsLoading(true);
 
       // Fetch candidate details
-      const { data: candidateData, error: candidateError } = await supabase
+      const { data: candidateData, error: candidateError} = await supabase
         .from("candidates")
         .select("*")
         .eq("id", id)
         .single();
 
       if (candidateError) throw candidateError;
+
+      // Get logged-in user (fetch once and reuse)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setUserEmail(user.email);
+      }
+
+      // Authorization check for interviewers
+      if (permissions.isInterviewer && user) {
+        const { data: activeAssignment } = await (supabase as any)
+          .from("candidate_assignments")
+          .select("*")
+          .eq("candidate_id", id)
+          .eq("interviewer_email", user.email)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!activeAssignment) {
+          toast({
+            title: "Access Denied",
+            description: "You are not assigned to this candidate",
+            variant: "destructive",
+          });
+          navigate("/unauthorized");
+          return;
+        }
+      }
+
       setCandidate(candidateData);
 
       // Generate signed URL for CV if it exists
@@ -99,6 +135,8 @@ export default function CandidateDetail() {
       }
 
       // Fetch interviews
+      // For interviewers: Show ALL interviews for candidates they're currently assigned to
+      // For HR: Show all interviews
       const { data: interviewsData, error: interviewsError } = await (supabase as any)
         .from("interviews")
         .select(
@@ -108,7 +146,25 @@ export default function CandidateDetail() {
         .order("interview_date", { ascending: false });
 
       if (interviewsError) throw interviewsError;
-      setInterviews(interviewsData || []);
+
+      // Fetch feedback for each interview
+      const interviewsWithFeedback = await Promise.all(
+        (interviewsData || []).map(async (interview: Interview) => {
+          const { data: feedbackData } = await (supabase as any)
+            .from("interview_feedback")
+            .select("id")
+            .eq("interview_id", interview.id)
+            .maybeSingle();
+
+          return {
+            ...interview,
+            has_feedback: !!feedbackData,
+            feedback_id: feedbackData?.id,
+          };
+        })
+      );
+
+      setInterviews(interviewsWithFeedback);
 
       // Fetch status history
       const { data: historyData, error: historyError } = await (supabase as any)
@@ -119,6 +175,48 @@ export default function CandidateDetail() {
 
       if (historyError) throw historyError;
       setStatusHistory(historyData || []);
+
+
+      // Fetch candidate assignment
+      const { data: assignmentData, error: assignmentError } = await (supabase as any)
+        .from("candidate_assignments")
+        .select("interviewer_name, interviewer_email")
+        .eq("candidate_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!assignmentError && assignmentData) {
+        setAssignment(assignmentData);
+      }
+
+      // Fetch job proposal if candidate is in pending_approval status
+      if (candidateData?.status === "pending_approval") {
+        const { data: proposalData } = await (supabase as any)
+          .from("job_proposals")
+          .select("*")
+          .eq("candidate_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (proposalData) {
+          setJobProposal(proposalData);
+        }
+
+        // Fetch interview feedback
+        const { data: feedbackData } = await (supabase as any)
+          .from("interview_feedback")
+          .select("*")
+          .eq("candidate_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (feedbackData) {
+          setInterviewFeedback(feedbackData);
+        }
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -158,6 +256,17 @@ export default function CandidateDetail() {
           changed_by_email: user.email,
         });
 
+      // Send email notification when interviewer confirms interest
+      if (newStatus === "to_interview" && permissions.isInterviewer && assignment) {
+        await emailNotifications.notifyInterestConfirmed(
+          id!,
+          assignment.assigned_by_email || user.email!,
+          assignment.interviewer_name || user.email!,
+          user.email!,
+          candidate!
+        );
+      }
+
       toast({
         title: "Success",
         description: `Status updated to ${newStatus}`,
@@ -176,10 +285,35 @@ export default function CandidateDetail() {
   const getStatusActions = () => {
     if (!candidate) return [];
 
+    const actions: Array<{ label: string; onClick: () => void; variant?: any }> = [];
+
+    // Interviewer-specific actions
+    if (permissions.isInterviewer) {
+      switch (candidate.status) {
+        case "shortlisted":
+          actions.push(
+            { label: "Confirm Interest", onClick: () => handleStatusChange("to_interview") }
+          );
+          break;
+        case "interview_scheduled":
+          actions.push(
+            { label: "Submit Feedback", onClick: () => navigate(`/interviewer/feedback/${id}`) }
+          );
+          break;
+        case "interviewed":
+          // Check if feedback already submitted
+          // TODO: We'll add this check when we implement feedback form
+          actions.push(
+            { label: "Submit Feedback", onClick: () => navigate(`/interviewer/feedback/${id}`) }
+          );
+          break;
+      }
+      return actions;
+    }
+
+    // HR Staff/Admin actions
     const canUpdate = permissions.canUpdate("candidates");
     if (!canUpdate) return [];
-
-    const actions: Array<{ label: string; onClick: () => void; variant?: any }> = [];
 
     switch (candidate.status) {
       case "new":
@@ -197,8 +331,16 @@ export default function CandidateDetail() {
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
         break;
+      case "to_interview":
+        actions.push(
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
       case "interview_scheduled":
         actions.push(
+          { label: "Reschedule Interview", onClick: () => setShowScheduleDialog(true) },
           { label: "Mark as Interviewed", onClick: () => handleStatusChange("interviewed") },
           { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
@@ -206,7 +348,14 @@ export default function CandidateDetail() {
         break;
       case "interviewed":
         actions.push(
-          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "to_offer":
+        actions.push(
+          { label: "Send Offer", onClick: () => navigate(`/candidates/${id}/send-offer`) },
           { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
@@ -226,7 +375,7 @@ export default function CandidateDetail() {
         actions.push(
           { label: "Back to Shortlist", onClick: () => handleStatusChange("shortlisted") },
           { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
-          { label: "Send Offer", onClick: () => setShowOfferDialog(true) },
+          { label: "Send Offer", onClick: () => navigate(`/candidates/${id}/send-offer`) },
           { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
         );
         break;
@@ -254,24 +403,45 @@ export default function CandidateDetail() {
     );
   }
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="border-b bg-card">
         <div className="container mx-auto px-6 py-4">
-          <img src={logo} alt="TalaadThai" className="h-24 w-auto mb-2" />
+          <div className="flex items-start justify-between">
+            <img src={logo} alt="TalaadThai" className="h-24 w-auto" />
+            <div className="flex flex-col items-end">
+              {userEmail && (
+                <span className="text-sm text-muted-foreground pt-1.5 pb-1.5">{userEmail}</span>
+              )}
+              <div className="flex items-center justify-end pt-1.5">
+                <Button variant="outline" onClick={handleLogout}>
+                  Logout
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       </header>
 
       <div className="container mx-auto px-6 py-8">
-        <Button variant="ghost" onClick={() => navigate("/candidates")} className="mb-6">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(permissions.isInterviewer && !permissions.isHRAdmin ? "/interviewer/dashboard" : "/candidates")}
+          className="mb-6"
+        >
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Candidates
+          Back to Dashboard
         </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
           {/* Candidate Profile */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="lg:col-span-2 space-y-6 flex flex-col">
             <Card>
               <CardHeader>
                 <CardTitle>Candidate Profile</CardTitle>
@@ -358,11 +528,37 @@ export default function CandidateDetail() {
               </CardContent>
             </Card>
 
+            {/* Offer Approval Section - for HR Manager and Interviewer */}
+            {candidate.status === "pending_approval" && jobProposal && (
+              <>
+                {permissions.isHRManager && !jobProposal.hr_manager_approved && (
+                  <OfferApprovalSection
+                    candidateId={id!}
+                    candidate={candidate}
+                    jobProposal={jobProposal}
+                    interviewFeedback={interviewFeedback}
+                    userRole="hr_manager"
+                    onApprovalComplete={fetchCandidateData}
+                  />
+                )}
+                {permissions.isInterviewer && jobProposal.hr_manager_approved && !jobProposal.interviewer_acknowledged && (
+                  <OfferApprovalSection
+                    candidateId={id!}
+                    candidate={candidate}
+                    jobProposal={jobProposal}
+                    interviewFeedback={interviewFeedback}
+                    userRole="interviewer"
+                    onApprovalComplete={fetchCandidateData}
+                  />
+                )}
+              </>
+            )}
+
             {/* Interviewer Information */}
             <InterviewerInfo candidateId={id!} />
 
             {/* Interviews */}
-            <Card>
+            <Card id="interview-history-card">
               <CardHeader>
                 <CardTitle>Interview History</CardTitle>
               </CardHeader>
@@ -371,29 +567,52 @@ export default function CandidateDetail() {
                   <p className="text-muted-foreground text-center py-8">No interviews scheduled</p>
                 ) : (
                   <div className="space-y-4">
-                    {interviews.map((interview) => (
-                      <div key={interview.id} className="border rounded-lg p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="font-medium">{interview.interviewer_name}</p>
-                          <span
-                            className={`px-2 py-1 rounded text-xs ${
-                              interview.status === "completed"
-                                ? "bg-green-100 text-green-700"
-                                : interview.status === "scheduled"
-                                  ? "bg-blue-100 text-blue-700"
-                                  : "bg-gray-100 text-gray-700"
-                            }`}
-                          >
-                            {interview.status}
-                          </span>
+                    {interviews.map((interview) => {
+                      const displayStatus = interview.has_feedback ? "feedbacked" : interview.status;
+                      const isHR = permissions.isHRAdmin || permissions.isHRStaff;
+
+                      return (
+                        <div key={interview.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-medium">{interview.interviewer_name}</p>
+                            <span
+                              className={`px-2 py-1 rounded text-xs ${
+                                displayStatus === "feedbacked"
+                                  ? "bg-purple-100 text-purple-700"
+                                  : displayStatus === "completed"
+                                    ? "bg-green-100 text-green-700"
+                                    : displayStatus === "scheduled"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : displayStatus === "cancelled"
+                                        ? "bg-gray-100 text-gray-700"
+                                        : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {displayStatus}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(interview.interview_date).toLocaleDateString()} at {interview.interview_time}
+                          </p>
+                          {interview.location && <p className="text-sm mt-1">Location: {interview.location}</p>}
+                          {interview.notes && <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>}
+
+                          {interview.has_feedback && isHR && (
+                            <div className="mt-3 pt-3 border-t">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-primary"
+                                onClick={() => navigate(`/feedback/view/${interview.feedback_id}`)}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View Feedback
+                              </Button>
+                            </div>
+                          )}
                         </div>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(interview.interview_date).toLocaleDateString()} at {interview.interview_time}
-                        </p>
-                        {interview.location && <p className="text-sm mt-1">Location: {interview.location}</p>}
-                        {interview.notes && <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </CardContent>
@@ -435,7 +654,7 @@ export default function CandidateDetail() {
               <CardHeader>
                 <CardTitle>Status History</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="overflow-y-auto" style={{ maxHeight: '600px', minHeight: '300px' }}>
                 <StatusHistoryTimeline history={statusHistory} />
               </CardContent>
             </Card>
@@ -447,6 +666,7 @@ export default function CandidateDetail() {
         open={showScheduleDialog}
         onOpenChange={setShowScheduleDialog}
         candidateId={id!}
+        assignment={assignment}
         onSuccess={fetchCandidateData}
       />
 

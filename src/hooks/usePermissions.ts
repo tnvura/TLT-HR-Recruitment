@@ -16,6 +16,7 @@ interface UsePermissionsReturn {
   canDelete: (resource: string) => boolean;
   isHRAdmin: boolean;
   isHRStaff: boolean;
+  isHRManager: boolean;
   isInterviewer: boolean;
   role: string | null;
   isLoading: boolean;
@@ -97,6 +98,7 @@ export const usePermissions = (): UsePermissionsReturn => {
     canDelete,
     isHRAdmin: role === 'hr_admin',
     isHRStaff: role === 'hr_staff',
+    isHRManager: role === 'hr_manager',
     isInterviewer: role === 'interviewer',
     role,
     isLoading,

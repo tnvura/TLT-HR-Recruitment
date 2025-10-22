@@ -62,8 +62,14 @@ const Login = () => {
         description: "Logged in successfully",
       });
 
-      console.log("Navigating to /candidates...");
-      navigate("/candidates");
+      // Redirect based on role
+      if (roleData?.role === "interviewer") {
+        console.log("Navigating to /interviewer/dashboard...");
+        navigate("/interviewer/dashboard");
+      } else {
+        console.log("Navigating to /candidates...");
+        navigate("/candidates");
+      }
     } catch (error: any) {
       console.error("Login error:", error);
       toast({
