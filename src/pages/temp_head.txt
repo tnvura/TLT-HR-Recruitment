@@ -1,0 +1,120 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar, FileText } from "lucide-react";
+import logo from "@/assets/talaadthai-logo.png";
+import { usePermissions } from "@/hooks/usePermissions";
+import { StatusBadge } from "@/components/StatusBadge";
+import { ScheduleInterviewDialog } from "@/components/ScheduleInterviewDialog";
+import { SendOfferDialog } from "@/components/SendOfferDialog";
+import { ShortlistDialog } from "@/components/ShortlistDialog";
+import { StatusHistoryTimeline } from "@/components/StatusHistoryTimeline";
+import { InterviewerInfo } from "@/components/InterviewerInfo";
+
+interface Candidate {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  position_applied: string;
+  status: string;
+  created_at: string;
+  education_level: string;
+  years_of_experience: string;
+  current_position: string;
+  current_employer: string;
+  institution: string;
+  message: string;
+  cv_file_url: string;
+}
+
+interface Interview {
+  id: string;
+  interview_date: string;
+  interview_time: string;
+  interviewer_name: string;
+  interviewer_email: string;
+  status: string;
+  location: string;
+  meeting_link: string;
+  notes: string;
+}
+
+interface StatusHistory {
+  id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_email: string;
+  changed_at: string;
+  notes: string;
+  reason: string;
+}
+
+export default function CandidateDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const permissions = usePermissions();
+
+  const [candidate, setCandidate] = useState<Candidate | null>(null);\n  const [assignment, setAssignment] = useState<{ interviewer_name: string; interviewer_email: string } | null>(null);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
+  const [showShortlistDialog, setShowShortlistDialog] = useState(false);
+  const [cvUrl, setCvUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchCandidateData();
+  }, [id]);
+
+  const fetchCandidateData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Fetch candidate details
+      const { data: candidateData, error: candidateError } = await supabase
+        .from("candidates")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (candidateError) throw candidateError;
+      setCandidate(candidateData);
+
+      // Generate signed URL for CV if it exists
+      if (candidateData?.cv_file_url) {
+        const { data: signedUrlData } = await supabase.storage
+          .from('CVS')
+          .createSignedUrl(candidateData.cv_file_url, 3600); // URL valid for 1 hour
+
+        if (signedUrlData?.signedUrl) {
+          setCvUrl(signedUrlData.signedUrl);
+        }
+      }
+
+      // Fetch interviews
+      const { data: interviewsData, error: interviewsError } = await (supabase as any)
+        .from("interviews")
+        .select(
+          "id, interview_date, interview_time, interviewer_name, interviewer_email, status, location, meeting_link, notes",
+        )
+        .eq("candidate_id", id)
+        .order("interview_date", { ascending: false });
+
+      if (interviewsError) throw interviewsError;
+      setInterviews(interviewsData || []);
+
+      // Fetch status history
+      const { data: historyData, error: historyError } = await (supabase as any)
+        .from("status_history")
+        .select("*")
+        .eq("candidate_id", id)
+        .order("changed_at", { ascending: false });
+
+      if (historyError) throw historyError;

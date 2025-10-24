@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Read(//c/Users/thanavatu/Desktop/Claude Project/**)",
+      "Bash(npm run dev)",
+      "Bash(claude mcp list)",
+      "WebFetch(domain:mcp.supabase.com)",
+      "mcp__github__search_repositories",
+      "Bash(claude mcp status playwright)",
+      "Bash(npx -y @playwright/mcp@latest --help)",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_fill_form",
+      "mcp__playwright__browser_click",
+      "Bash(sed -i '63 a\\  const [assignment, setAssignment] = useState<{ interviewer_name: string; interviewer_email: string } | null>(null);' src/pages/CandidateDetail.tsx)",
+      "mcp__supabase__apply_migration",
+      "mcp__supabase__execute_sql",
+      "mcp__supabase__list_migrations",
+      "Bash(supabase --version:*)",
+      "Bash(npm install:*)",
+      "Bash(npx supabase --version)",
+      "Bash(npx supabase:*)",
+      "Bash(curl:*)",
+      "mcp__supabase__list_edge_functions"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

@@ -1,0 +1,52 @@
+feat: Add comprehensive job offer management system with approval workflow
+
+Implemented end-to-end offer management with multi-stage approval process:
+
+- Created SendOfferPage with three sections:
+  * Interview Feedback (display only): interviewer, score, comments
+  * Employment Details (17 fields): position level, job grade, salaries, company, Thai/English departments/divisions/sections, direct reports, managers, start date
+  * Personal Identification (15 fields): name title, Thai/English names, national ID, birthday, gender, religion, detailed address breakdown
+
+- Added approval workflow:
+  * Status flow: to_offer → pending_approval → offer_sent
+  * HR submits offer → HR Manager approves → Interviewer acknowledges
+  * OfferApprovalSection component for in-app approvals
+  * Email notifications at each approval stage
+
+- Implemented in-app notification system:
+  * NotificationBell component with unread count badge
+  * NotificationDropdown with real-time updates via Supabase subscriptions
+  * useNotifications hook for notification management
+  * notifications table with RLS policies
+
+- Added hr_manager role:
+  * Extended role permissions and usePermissions hook
+  * Route protection for hr_manager access
+
+- Enhanced interview management:
+  * Interview rescheduling support
+  * Interviewer reassignment with cascade updates
+  * Email notifications for schedule changes
+  * Pre-fill interview form with existing data
+
+- Made scoring fields mandatory in InterviewFeedbackForm:
+  * Added visual indicators (red asterisks) to Scoring columns
+  * Both Competency and Core Value Assessment tables
+
+- Fixed database schema:
+  * position_level and job_grade now nullable in interview_feedback
+  * Allows two-phase data entry: interviewer → HR update
+
+- Added new services:
+  * emailNotifications: 4 new offer approval notification methods
+  * offerNotifications: In-app notification creators for offer workflow
+
+- Database migrations applied:
+  * add_hr_manager_role
+  * create_notifications_table
+  * extend_job_proposals_and_candidates
+  * fix_interview_feedback_nullable_fields
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)
+
+Co-Authored-By: Claude <noreply@anthropic.com>

@@ -1,0 +1,310 @@
+import { supabase } from "@/integrations/supabase/client";
+
+interface CreateNotificationParams {
+  userId: string;
+  type: string;
+  title: string;
+  message: string;
+  relatedCandidateId?: string;
+  relatedProposalId?: string;
+}
+
+export const offerNotifications = {
+  // Create a notification for HR Manager approval
+  async notifyHRManagerApproval(
+    hrManagerUserId: string,
+    candidateId: string,
+    candidateName: string,
+    position: string,
+    proposalId: string
+  ) {
+    return this.createNotification({
+      userId: hrManagerUserId,
+      type: "offer_approval_hr_manager",
+      title: "New Offer Pending Approval",
+      message: `Offer for ${candidateName} - ${position} requires your approval`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+  },
+
+  // Create a notification for Interviewer acknowledgment
+  async notifyInterviewerAcknowledgment(
+    interviewerUserId: string,
+    candidateId: string,
+    candidateName: string,
+    position: string,
+    proposalId: string
+  ) {
+    return this.createNotification({
+      userId: interviewerUserId,
+      type: "offer_approval_interviewer",
+      title: "Offer Acknowledgment Required",
+      message: `Offer for ${candidateName} - ${position} needs your acknowledgment`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+  },
+
+  // Create a notification for HR User when HR Manager approves
+  async notifyHRUserManagerApproved(
+    hrUserId: string,
+    candidateId: string,
+    candidateName: string,
+    position: string,
+    proposalId: string
+  ) {
+    return this.createNotification({
+      userId: hrUserId,
+      type: "offer_hr_manager_approved",
+      title: "Offer Approved by HR Manager",
+      message: `Offer for ${candidateName} - ${position} has been approved by HR Manager. Awaiting interviewer acknowledgment.`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+  },
+
+  // Create a notification for HR User when offer is rejected
+  async notifyHRUserRejection(
+    hrUserId: string,
+    candidateId: string,
+    candidateName: string,
+    position: string,
+    proposalId: string,
+    rejectedBy: "HR Manager" | "Interviewer"
+  ) {
+    return this.createNotification({
+      userId: hrUserId,
+      type: rejectedBy === "HR Manager" ? "offer_rejected_by_hr_manager" : "offer_rejected_by_interviewer",
+      title: `Offer Rejected by ${rejectedBy}`,
+      message: `Offer for ${candidateName} - ${position} was rejected by ${rejectedBy}. Please review rejection notes and make amendments.`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+  },
+
+  // Create notifications when interviewer approves (final approval)
+  async notifyOfferApprovalComplete(
+    hrUserId: string,
+    hrManagerId: string,
+    candidateId: string,
+    candidateName: string,
+    position: string,
+    proposalId: string
+  ) {
+    // In-app notification to HR User
+    await this.createNotification({
+      userId: hrUserId,
+      type: "offer_approved_complete",
+      title: "Offer Approved - Ready to Send",
+      message: `Offer for ${candidateName} - ${position} has been fully approved and status changed to Offer Sent`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+
+    // In-app notification to HR Manager
+    await this.createNotification({
+      userId: hrManagerId,
+      type: "offer_approved_complete",
+      title: "Offer Approved - Ready to Send",
+      message: `Offer for ${candidateName} - ${position} has been fully approved and status changed to Offer Sent`,
+      relatedCandidateId: candidateId,
+      relatedProposalId: proposalId,
+    });
+
+    // Email notification will be handled by Edge Function
+    // Insert records for both HR User and HR Manager
+    // Notification to HR User
+    await this.sendEmail({
+      candidateId,
+      eventType: "offer_approved_complete",
+      recipientEmail: await this.getUserEmail(hrUserId),
+      recipientName: "HR User",
+      data: {
+        candidate_name: candidateName,
+        position_offered: position,
+        proposal_id: proposalId,
+        approved_at: new Date().toISOString(),
+      },
+    });
+
+    // Notification to HR Manager
+    await this.sendEmail({
+      candidateId,
+      eventType: "offer_approved_complete",
+      recipientEmail: await this.getUserEmail(hrManagerId),
+      recipientName: "HR Manager",
+      data: {
+        candidate_name: candidateName,
+        position_offered: position,
+        proposal_id: proposalId,
+        approved_at: new Date().toISOString(),
+      },
+    });
+  },
+
+  // Send status change notification to interviewer
+  async notifyInterviewerStatusChange(
+    interviewerUserId: string,
+    candidateId: string,
+    candidateName: string,
+    fromStatus: string,
+    toStatus: string,
+    changedByEmail: string // ← NEW parameter (get from calling function)
+  ) {
+    await this.sendEmail({
+      candidateId,
+      eventType: "status_change_post_offer",
+      recipientEmail: await this.getUserEmail(interviewerUserId),
+      recipientName: "Interviewer",
+      data: {
+        candidate_name: candidateName,
+        from_status: fromStatus,
+        to_status: toStatus,
+        changed_by: changedByEmail,
+        changed_at: new Date().toISOString(),
+      },
+    });
+  },
+
+  // Helper function to get user email
+  async getUserEmail(userId: string): Promise<string> {
+    try {
+      const { data, error } = await supabase.auth.admin.getUserById(userId);
+      if (error) throw error;
+      return data.user?.email || "";
+    } catch (error) {
+      console.error("Error fetching user email:", error);
+      return "";
+    }
+  },
+
+  // Helper function to send email notification
+  async sendEmail(params: {
+    candidateId: string;
+    eventType: string;
+    recipientEmail: string;
+    recipientName: string;
+    data: Record<string, any>; // ← NEW: Event-specific data
+  }) {
+    try {
+      // Get authenticated user for Edge Function call
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        console.error("Not authenticated - cannot send notification");
+        return;
+      }
+
+      // Call Edge Function instead of direct database insertion
+      const { data, error } = await supabase.functions.invoke(
+        "send-email-notification",
+        {
+          body: {
+            event_type: params.eventType,
+            candidate_id: params.candidateId,
+            recipient_email: params.recipientEmail,
+            recipient_name: params.recipientName,
+            data: params.data, // ← Event-specific payload
+          },
+          headers: {
+            "X-User-Id": user.id, // For rate limiting
+          },
+        }
+      );
+
+      if (error) {
+        // Handle webhook not configured errors gracefully (404 or similar)
+        // Check for FunctionsHttpError which indicates Edge Function responded but with error
+        const isWebhookNotConfigured =
+          error.message?.includes('404') ||
+          error.message?.includes('Webhook not configured') ||
+          error.message?.includes('non-2xx status code') ||
+          error.name === 'FunctionsHttpError';
+
+        if (isWebhookNotConfigured) {
+          console.warn(`⚠️ Webhook not configured for ${params.eventType}. Email notification skipped. Configure webhooks in notification_config table to enable emails.`);
+        } else {
+          console.error(`Email notification error for ${params.eventType}:`, error);
+        }
+        // Don't throw - email failures shouldn't block main flow
+      } else {
+        console.log(`✅ Email notification sent for ${params.eventType}:`, data);
+      }
+    } catch (error: any) {
+      console.error("Error creating email notification:", error);
+      // Don't throw - email failures shouldn't block main flow
+    }
+  },
+
+  // Create a generic notification
+  async createNotification(params: CreateNotificationParams) {
+    try {
+      const { error } = await (supabase as any).from("notifications").insert({
+        user_id: params.userId,
+        type: params.type,
+        title: params.title,
+        message: params.message,
+        related_candidate_id: params.relatedCandidateId,
+        related_proposal_id: params.relatedProposalId,
+        is_read: false,
+      });
+
+      if (error) throw error;
+    } catch (error: any) {
+      console.error("Error creating notification:", error);
+      throw error;
+    }
+  },
+
+  // Get HR Manager user ID (first hr_manager found)
+  async getHRManagerUserId(): Promise<string | null> {
+    try {
+      const { data, error } = await (supabase as any)
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "hr_manager")
+        .eq("is_active", true)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data?.user_id || null;
+    } catch (error) {
+      console.error("Error fetching HR Manager:", error);
+      return null;
+    }
+  },
+
+  // Get interviewer user ID from interview record
+  async getInterviewerUserId(candidateId: string): Promise<string | null> {
+    try {
+      // First get interviewer email from interviews table
+      const { data: interview, error: interviewError } = await (supabase as any)
+        .from("interviews")
+        .select("interviewer_email")
+        .eq("candidate_id", candidateId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (interviewError || !interview) return null;
+
+      // Use RPC function to get user ID from email (server-side function)
+      const { data: userId, error: rpcError } = await supabase.rpc(
+        "get_user_id_by_email",
+        { user_email: interview.interviewer_email }
+      );
+
+      if (rpcError) {
+        console.error("Error fetching user ID by email:", rpcError);
+        return null;
+      }
+
+      return userId || null;
+    } catch (error) {
+      console.error("Error fetching interviewer user ID:", error);
+      return null;
+    }
+  },
+};

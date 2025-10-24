@@ -1,0 +1,14 @@
+      setStatusHistory(historyData || []);
+
+      // Fetch candidate assignment
+      const { data: assignmentData, error: assignmentError } = await (supabase as any)
+        .from("candidate_assignments")
+        .select("interviewer_name, interviewer_email")
+        .eq("candidate_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!assignmentError && assignmentData) {
+        setAssignment(assignmentData);
+      }

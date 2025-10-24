@@ -1,0 +1,17 @@
+[core]
+	repositoryformatversion = 0
+	filemode = false
+	bare = false
+	logallrefupdates = true
+	symlinks = false
+	ignorecase = true
+[remote "origin"]
+	url = https://github.com/My-Pilot-Project/hireflow-supabase.git
+	fetch = +refs/heads/*:refs/remotes/origin/*
+[branch "main"]
+	remote = origin
+	merge = refs/heads/main
+	vscode-merge-base = origin/main
+[remote "tlt-hr"]
+	url = https://github.com/tnvura/TLT-HR-Recruitment.git
+	fetch = +refs/heads/*:refs/remotes/tlt-hr/*

@@ -1,0 +1,435 @@
+import { useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { format } from "date-fns";
+import { cn } from "@/lib/utils";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+const competencyTopics = [
+  "ความรู้ในงาน ทักษะและประสบการณ์เหมาะสมสำหรับตำแหน่งที่สัมภาษณ์",
+  "ท่าทาง / บุคลิกภาพ / มารยาท / ความเหมาะสมของการแต่งกาย",
+  "ความสามารถในการสื่อสาร (ชัดเจน เข้าใจง่าย)",
+  "มีปฏิภาณไหวพริบ การวิเคราะห์ และตอบคำถาม",
+  "ทัศนคติต่อตนเอง ผู้อื่น และงานที่จะปฏิบัติ",
+  "มีลักษณะการเป็นผู้นำ",
+  "ความเหมาะสมกับองค์กรในตำแหน่งที่สัมภาษณ์",
+];
+
+const coreValueTopics = [
+  { letter: "S", color: "text-green-600", text: 'มีมนุษย์สัมพันธ์ที่ดี "ยิ้มแย้มแจ่มใส พร้อมให้บริการ"' },
+  { letter: "S", color: "text-green-600", text: "การแก้ไขปัญหาแม้ว่าจะนอกเหนือหน้าที่ความรับผิดชอบ" },
+  { letter: "A", color: "text-orange-500", text: "ความมีวิริยะ อุตสาหะ ความกระตือรือร้น และความพร้อมจะเรียนรู้" },
+  { letter: "A", color: "text-orange-500", text: "การส่งมอบงานให้กับผู้อื่น / ความละเอียดรอบคอบในงาน" },
+  { letter: "T", color: "text-blue-900", text: "การสนับสนุนทีมงาน, การรับฟังความเห็น และการทำงานร่วมกับผู้อื่น" },
+  { letter: "T", color: "text-blue-900", text: "เมื่อเกิดปัญหากล้าที่จะยอมรับผิดและช่วยกันแก้ไขปรับปรุง" },
+  { letter: "I", color: "text-cyan-500", text: "การตรงต่อเวลา" },
+  { letter: "I", color: "text-cyan-500", text: "ทำงานด้วยความโปร่งใส ตรวจสอบได้ หรือไม่เอื้อประโยชน์กับพวกพ้อง หรือไม่ใช้ทรัพยากรส่วนรวมเพื่อประโยชน์ส่วนตน ไม่ละเมิดสิทธิผู้อื่น" },
+];
+
+const InterviewFeedback = () => {
+  const [appliedDate, setAppliedDate] = useState<Date>();
+  const [interviewDate, setInterviewDate] = useState<Date>();
+  const [employmentType, setEmploymentType] = useState<string>("");
+  const [positionType, setPositionType] = useState<string>("");
+  const [tempStartDate, setTempStartDate] = useState<Date>();
+  const [tempEndDate, setTempEndDate] = useState<Date>();
+  const [competencyScores, setCompetencyScores] = useState<Record<number, number>>({});
+  const [coreValueScores, setCoreValueScores] = useState<Record<number, number>>({});
+
+  const totalScore = Object.values(competencyScores).reduce((a, b) => a + b, 0) + 
+                     Object.values(coreValueScores).reduce((a, b) => a + b, 0);
+  const maxScore = (competencyTopics.length + coreValueTopics.length) * 5;
+  const percentage = maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+
+  return (
+    <div className="min-h-screen bg-background p-6">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-3xl font-bold text-foreground">Interview Feedback Form</h1>
+        </div>
+
+        {/* Candidate Profile */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Candidate Profile</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="firstName">First Name</Label>
+                <Input id="firstName" placeholder="Enter first name" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="lastName">Last Name</Label>
+                <Input id="lastName" placeholder="Enter last name" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="nickname">Nickname</Label>
+                <Input id="nickname" placeholder="Enter nickname" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="appliedPosition">Applied Position</Label>
+                <Input id="appliedPosition" placeholder="Enter applied position" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="positionLevel">Position Level <span className="text-destructive">*</span></Label>
+                <Input id="positionLevel" placeholder="Enter position level" required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="jobGrade">Job Grade <span className="text-destructive">*</span></Label>
+                <Input id="jobGrade" placeholder="Enter job grade" required />
+              </div>
+              <div className="space-y-2">
+                <Label>Applied Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !appliedDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {appliedDate ? format(appliedDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={appliedDate}
+                      onSelect={setAppliedDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              <div className="space-y-2">
+                <Label>Interview Date <span className="text-destructive">*</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !interviewDate && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {interviewDate ? format(interviewDate, "PPP") : "Pick a date"}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={interviewDate}
+                      onSelect={setInterviewDate}
+                      initialFocus
+                      className="pointer-events-auto"
+                      required
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Candidate Current Employment */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Candidate Current Employment</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="currentSalary">Current Salary</Label>
+                <Input id="currentSalary" type="number" placeholder="Enter current salary" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="expectedSalary">Expected Salary</Label>
+                <Input id="expectedSalary" type="number" placeholder="Enter expected salary" />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="currentPosition">Current Position</Label>
+                <Input id="currentPosition" placeholder="Enter current position" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* TalaadThai Employment Terms */}
+        <Card>
+          <CardHeader>
+            <CardTitle>TalaadThai Employment Terms</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-3">
+              <Label>Employment Type <span className="text-destructive">*</span></Label>
+              <RadioGroup value={employmentType} onValueChange={setEmploymentType} required>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="permanent-monthly" id="permanent-monthly" />
+                  <Label htmlFor="permanent-monthly" className="font-normal cursor-pointer">
+                    Permanent - Monthly
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="permanent-daily" id="permanent-daily" />
+                  <Label htmlFor="permanent-daily" className="font-normal cursor-pointer">
+                    Permanent - Daily
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="temporary" id="temporary" />
+                  <Label htmlFor="temporary" className="font-normal cursor-pointer">
+                    Temporary
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            {employmentType === "temporary" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t">
+                <div className="space-y-2">
+                  <Label>Period Start Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !tempStartDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {tempStartDate ? format(tempStartDate, "PPP") : "Pick start date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={tempStartDate}
+                        onSelect={setTempStartDate}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="space-y-2">
+                  <Label>Period End Date</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          "w-full justify-start text-left font-normal",
+                          !tempEndDate && "text-muted-foreground"
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {tempEndDate ? format(tempEndDate, "PPP") : "Pick end date"}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={tempEndDate}
+                        onSelect={setTempEndDate}
+                        initialFocus
+                        className="pointer-events-auto"
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-3 pt-4 border-t">
+              <Label>Position Type <span className="text-destructive">*</span></Label>
+              <RadioGroup value={positionType} onValueChange={setPositionType} required>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="replacement" id="replacement" />
+                  <Label htmlFor="replacement" className="font-normal cursor-pointer">
+                    Replacement
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="new-position" id="new-position" />
+                  <Label htmlFor="new-position" className="font-normal cursor-pointer">
+                    New Position
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Competency Assessment */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Competency Assessment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-emerald-100 hover:bg-emerald-100">
+                    <TableHead className="w-16 text-center font-semibold text-foreground">#</TableHead>
+                    <TableHead className="w-[500px] text-center font-semibold text-foreground">Topic</TableHead>
+                    <TableHead className="w-32 text-center font-semibold text-foreground">Scoring</TableHead>
+                    <TableHead className="w-64 text-center font-semibold text-foreground">Opinion</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {competencyTopics.map((topic, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell>{topic}</TableCell>
+                      <TableCell>
+                        <Select 
+                          value={competencyScores[index]?.toString()} 
+                          onValueChange={(value) => setCompetencyScores(prev => ({...prev, [index]: parseInt(value)}))}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Score" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1</SelectItem>
+                            <SelectItem value="2">2</SelectItem>
+                            <SelectItem value="3">3</SelectItem>
+                            <SelectItem value="4">4</SelectItem>
+                            <SelectItem value="5">5</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input placeholder="Enter opinion" className="w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Core Value Assessment */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Core Value Assessment</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-emerald-100 hover:bg-emerald-100">
+                    <TableHead className="w-16 text-center font-semibold text-foreground">#</TableHead>
+                    <TableHead className="w-[500px] text-center font-semibold text-foreground">Topic</TableHead>
+                    <TableHead className="w-32 text-center font-semibold text-foreground">Scoring</TableHead>
+                    <TableHead className="w-64 text-center font-semibold text-foreground">Opinion</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {coreValueTopics.map((topic, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{index + 1}</TableCell>
+                      <TableCell>
+                        <span className={`${topic.color} font-bold`}>{topic.letter}</span>
+                        <span> : {topic.text}</span>
+                      </TableCell>
+                      <TableCell>
+                        <Select 
+                          value={coreValueScores[index]?.toString()} 
+                          onValueChange={(value) => setCoreValueScores(prev => ({...prev, [index]: parseInt(value)}))}
+                          required
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Score" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="1">1</SelectItem>
+                            <SelectItem value="2">2</SelectItem>
+                            <SelectItem value="3">3</SelectItem>
+                            <SelectItem value="4">4</SelectItem>
+                            <SelectItem value="5">5</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </TableCell>
+                      <TableCell>
+                        <Input placeholder="Enter opinion" className="w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Interviewer Feedback */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Interviewer Feedback</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Label htmlFor="comment">Comment</Label>
+            <div className="flex gap-4">
+              <Textarea
+                id="comment"
+                placeholder="Enter your feedback and comments here..."
+                className="flex-1 min-h-[170px] resize-none"
+              />
+              <div className="bg-primary text-primary-foreground px-10 py-6 rounded-lg shadow-lg flex-shrink-0 flex flex-col justify-center items-center min-w-[180px]">
+                <div className="text-sm font-medium mb-1 text-center">Total Score</div>
+                <div className="text-4xl font-bold text-center">
+                  {totalScore}/{maxScore}
+                </div>
+                <div className="text-xl font-semibold mt-2 text-center">
+                  ({percentage}%)
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-3 pt-4">
+              <Button size="lg" className="flex-1 min-w-[150px]">
+                To Offer
+              </Button>
+              <Button size="lg" variant="secondary" className="flex-1 min-w-[150px]">
+                On Hold
+              </Button>
+              <Button size="lg" variant="destructive" className="flex-1 min-w-[150px]">
+                Reject
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+};
+
+export default InterviewFeedback;

@@ -1,0 +1,731 @@
+import { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { ArrowLeft, Mail, Phone, Briefcase, GraduationCap, Calendar, FileText, ExternalLink, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import logo from "@/assets/talaadthai-logo.png";
+import { usePermissions } from "@/hooks/usePermissions";
+import { StatusBadge } from "@/components/StatusBadge";
+import { ScheduleInterviewDialog } from "@/components/ScheduleInterviewDialog";
+import { SendOfferDialog } from "@/components/SendOfferDialog";
+import { ShortlistDialog } from "@/components/ShortlistDialog";
+import { StatusHistoryTimeline } from "@/components/StatusHistoryTimeline";
+import { InterviewerInfo } from "@/components/InterviewerInfo";
+import { OfferApprovalSection } from "@/components/OfferApprovalSection";
+import { EditableOfferSection } from "@/components/EditableOfferSection";
+import { OfferWorkflowStatus } from "@/components/OfferWorkflowStatus";
+import { emailNotifications } from "@/services/emailNotifications";
+
+interface Candidate {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone_number: string;
+  position_applied: string;
+  status: string;
+  created_at: string;
+  education_level: string;
+  years_of_experience: string;
+  current_position: string;
+  current_employer: string;
+  institution: string;
+  message: string;
+  cv_file_url: string;
+}
+
+interface Interview {
+  id: string;
+  interview_date: string;
+  interview_time: string;
+  interviewer_name: string;
+  interviewer_email: string;
+  status: string;
+  location: string;
+  meeting_link: string;
+  notes: string;
+  feedback_id?: string;
+  has_feedback?: boolean;
+}
+
+interface StatusHistory {
+  id: string;
+  from_status: string;
+  to_status: string;
+  changed_by_email: string;
+  changed_at: string;
+  notes: string;
+  reason: string;
+}
+
+export default function CandidateDetail() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const permissions = usePermissions();
+
+  const [candidate, setCandidate] = useState<Candidate | null>(null);
+  const [assignment, setAssignment] = useState<{ interviewer_name: string; interviewer_email: string; assigned_by_email: string } | null>(null);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([]);
+  const [jobProposal, setJobProposal] = useState<any>(null);
+  const [interviewFeedback, setInterviewFeedback] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showScheduleDialog, setShowScheduleDialog] = useState(false);
+  const [showOfferDialog, setShowOfferDialog] = useState(false);
+  const [showShortlistDialog, setShowShortlistDialog] = useState(false);
+  const [cvUrl, setCvUrl] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string>("");
+
+  useEffect(() => {
+    fetchCandidateData();
+  }, [id]);
+
+  const fetchCandidateData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Fetch candidate details
+      const { data: candidateData, error: candidateError} = await supabase
+        .from("candidates")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (candidateError) throw candidateError;
+
+      // Get logged-in user (fetch once and reuse)
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        setUserEmail(user.email);
+      }
+
+      // Authorization check for interviewers
+      if (permissions.isInterviewer && user) {
+        const { data: activeAssignment } = await (supabase as any)
+          .from("candidate_assignments")
+          .select("*")
+          .eq("candidate_id", id)
+          .eq("interviewer_email", user.email)
+          .eq("is_active", true)
+          .maybeSingle();
+
+        if (!activeAssignment) {
+          toast({
+            title: "Access Denied",
+            description: "You are not assigned to this candidate",
+            variant: "destructive",
+          });
+          navigate("/unauthorized");
+          return;
+        }
+      }
+
+      setCandidate(candidateData);
+
+      // Generate signed URL for CV if it exists
+      if (candidateData?.cv_file_url) {
+        const { data: signedUrlData } = await supabase.storage
+          .from('CVS')
+          .createSignedUrl(candidateData.cv_file_url, 3600); // URL valid for 1 hour
+
+        if (signedUrlData?.signedUrl) {
+          setCvUrl(signedUrlData.signedUrl);
+        }
+      }
+
+      // Fetch interviews
+      // For interviewers: Show ALL interviews for candidates they're currently assigned to
+      // For HR: Show all interviews
+      const { data: interviewsData, error: interviewsError } = await (supabase as any)
+        .from("interviews")
+        .select(
+          "id, interview_date, interview_time, interviewer_name, interviewer_email, status, location, meeting_link, notes",
+        )
+        .eq("candidate_id", id)
+        .order("interview_date", { ascending: false });
+
+      if (interviewsError) throw interviewsError;
+
+      // Fetch feedback for each interview
+      const interviewsWithFeedback = await Promise.all(
+        (interviewsData || []).map(async (interview: Interview) => {
+          const { data: feedbackData } = await (supabase as any)
+            .from("interview_feedback")
+            .select("id")
+            .eq("interview_id", interview.id)
+            .maybeSingle();
+
+          return {
+            ...interview,
+            has_feedback: !!feedbackData,
+            feedback_id: feedbackData?.id,
+          };
+        })
+      );
+
+      setInterviews(interviewsWithFeedback);
+
+      // Fetch status history
+      const { data: historyData, error: historyError } = await (supabase as any)
+        .from("status_history")
+        .select("*")
+        .eq("candidate_id", id)
+        .order("changed_at", { ascending: false });
+
+      if (historyError) throw historyError;
+      setStatusHistory(historyData || []);
+
+
+      // Fetch candidate assignment
+      const { data: assignmentData, error: assignmentError } = await (supabase as any)
+        .from("candidate_assignments")
+        .select("interviewer_name, interviewer_email, assigned_by_email")
+        .eq("candidate_id", id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!assignmentError && assignmentData) {
+        setAssignment(assignmentData);
+      }
+
+      // Fetch job proposal if candidate is in pending_approval status
+      if (candidateData?.status === "pending_approval") {
+        const { data: proposalData } = await (supabase as any)
+          .from("job_proposals")
+          .select("*")
+          .eq("candidate_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (proposalData) {
+          setJobProposal(proposalData);
+        }
+
+        // Fetch interview feedback
+        const { data: feedbackData } = await (supabase as any)
+          .from("interview_feedback")
+          .select("*")
+          .eq("candidate_id", id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (feedbackData) {
+          setInterviewFeedback(feedbackData);
+        }
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Not authenticated");
+
+      // Update candidate status
+      const { error: updateError } = await supabase
+        .from("candidates")
+        .update({
+          status: newStatus,
+          updated_by: user.id,
+          updated_by_email: user.email,
+        })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      // Insert status history
+      await (supabase as any)
+        .from("status_history")
+        .insert({
+          candidate_id: id,
+          from_status: candidate?.status,
+          to_status: newStatus,
+          changed_by: user.id,
+          changed_by_email: user.email,
+        });
+
+      // Send email notification when interviewer confirms interest
+      if (newStatus === "to_interview" && permissions.isInterviewer && assignment) {
+        await emailNotifications.notifyInterestConfirmed(
+          id!,
+          assignment.assigned_by_email || user.email!,
+          assignment.interviewer_name || user.email!,
+          user.email!,
+          candidate!
+        );
+      }
+
+      toast({
+        title: "Success",
+        description: `Status updated to ${newStatus}`,
+      });
+
+      fetchCandidateData();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const getStatusActions = () => {
+    if (!candidate) return [];
+
+    const actions: Array<{ label: string; onClick: () => void; variant?: any }> = [];
+
+    // Interviewer-specific actions
+    if (permissions.isInterviewer) {
+      switch (candidate.status) {
+        case "shortlisted":
+          actions.push(
+            { label: "Confirm Interest", onClick: () => handleStatusChange("to_interview") }
+          );
+          break;
+        case "interview_scheduled":
+          actions.push(
+            { label: "Submit Feedback", onClick: () => navigate(`/interviewer/feedback/${id}`) }
+          );
+          break;
+        case "interviewed":
+          // Check if feedback already submitted
+          // TODO: We'll add this check when we implement feedback form
+          actions.push(
+            { label: "Submit Feedback", onClick: () => navigate(`/interviewer/feedback/${id}`) }
+          );
+          break;
+      }
+      return actions;
+    }
+
+    // HR Staff/Admin actions
+    const canUpdate = permissions.canUpdate("candidates");
+    if (!canUpdate) return [];
+
+    switch (candidate.status) {
+      case "new":
+        actions.push(
+          { label: "Shortlist", onClick: () => setShowShortlistDialog(true) },
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "shortlisted":
+        actions.push(
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "to_interview":
+        actions.push(
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "interview_scheduled":
+        actions.push(
+          { label: "Reschedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Mark as Interviewed", onClick: () => handleStatusChange("interviewed") },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "interviewed":
+        actions.push(
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "to_offer":
+        actions.push(
+          { label: "Send Offer", onClick: () => navigate(`/candidates/${id}/send-offer`) },
+          { label: "Put On Hold", onClick: () => handleStatusChange("on_hold") },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+      case "offer_sent":
+        actions.push(
+          { label: "Mark Offer Accepted", onClick: () => handleStatusChange("offer_accepted") },
+          { label: "Mark Offer Rejected", onClick: () => handleStatusChange("offer_rejected"), variant: "destructive" }
+        );
+        break;
+      case "offer_accepted":
+        actions.push(
+          { label: "Mark as Hired", onClick: () => handleStatusChange("hired") }
+        );
+        break;
+      case "on_hold":
+        actions.push(
+          { label: "Back to Shortlist", onClick: () => handleStatusChange("shortlisted") },
+          { label: "Schedule Interview", onClick: () => setShowScheduleDialog(true) },
+          { label: "Send Offer", onClick: () => navigate(`/candidates/${id}/send-offer`) },
+          { label: "Reject", onClick: () => handleStatusChange("rejected"), variant: "destructive" }
+        );
+        break;
+    }
+
+    return actions;
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  if (!candidate) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-4">Candidate not found</h2>
+          <Button onClick={() => navigate("/candidates")}>Back to Candidates</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <header className="border-b bg-card">
+        <div className="container mx-auto px-6 py-4">
+          <div className="flex items-start justify-between">
+            <img src={logo} alt="TalaadThai" className="h-24 w-auto" />
+            <div className="flex flex-col items-end">
+              {userEmail && (
+                <span className="text-sm text-muted-foreground pt-1.5 pb-1.5">{userEmail}</span>
+              )}
+              <div className="flex items-center justify-end pt-1.5">
+                <Button variant="outline" onClick={handleLogout}>
+                  Logout
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="container mx-auto px-6 py-8">
+        <Button
+          variant="ghost"
+          onClick={() => navigate(permissions.isInterviewer && !permissions.isHRAdmin ? "/interviewer/dashboard" : "/candidates")}
+          className="mb-6"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:items-start">
+          {/* Candidate Profile */}
+          <div className="lg:col-span-2 space-y-6 flex flex-col">
+            <Card>
+              <CardHeader>
+                <CardTitle>Candidate Profile</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground">First Name</p>
+                    <p className="font-medium">{candidate.first_name}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Last Name</p>
+                    <p className="font-medium">{candidate.last_name}</p>
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium">{candidate.email}</p>
+                  </div>
+                </div>
+
+                {candidate.phone_number && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Phone Number</p>
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium">{candidate.phone_number}</p>
+                    </div>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Position Applied</p>
+                  <div className="flex items-center gap-2">
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium">{candidate.position_applied}</p>
+                  </div>
+                </div>
+
+                {candidate.education_level && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Education</p>
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="h-4 w-4 text-muted-foreground" />
+                      <p className="font-medium">
+                        {candidate.education_level} - {candidate.institution}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {candidate.years_of_experience && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Years of Experience</p>
+                    <p className="font-medium">{candidate.years_of_experience}</p>
+                  </div>
+                )}
+
+                {candidate.current_position && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Position</p>
+                    <p className="font-medium">
+                      {candidate.current_position} at {candidate.current_employer}
+                    </p>
+                  </div>
+                )}
+
+                {candidate.message && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Message</p>
+                    <p className="mt-1">{candidate.message}</p>
+                  </div>
+                )}
+
+                <div>
+                  <p className="text-sm text-muted-foreground">Applied Date</p>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium">{new Date(candidate.created_at).toLocaleDateString()}</p>
+                  </div>
+                </div>
+
+                {cvUrl && permissions.canRead("candidates") && (
+                  <div className="pt-2 border-t">
+                    <p className="text-sm text-muted-foreground mb-2">CV/Resume</p>
+                    <a
+                      href={cvUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-primary hover:underline"
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>View CV/Resume</span>
+                    </a>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Offer Approval Section - for HR Manager, Interviewer, and HR User */}
+            {candidate.status === "pending_approval" && jobProposal && (
+              <>
+                {/* Workflow Status - visible to all users */}
+                <OfferWorkflowStatus jobProposal={jobProposal} />
+
+                {permissions.isHRManager && !jobProposal.hr_manager_approved && !jobProposal.hr_manager_rejection_notes && (
+                  <OfferApprovalSection
+                    candidateId={id!}
+                    candidate={candidate}
+                    jobProposal={jobProposal}
+                    interviewFeedback={interviewFeedback}
+                    userRole="hr_manager"
+                    onApprovalComplete={fetchCandidateData}
+                  />
+                )}
+                {permissions.isInterviewer && jobProposal.hr_manager_approved && !jobProposal.interviewer_acknowledged && !jobProposal.interviewer_rejection_notes && (
+                  <OfferApprovalSection
+                    candidateId={id!}
+                    candidate={candidate}
+                    jobProposal={jobProposal}
+                    interviewFeedback={interviewFeedback}
+                    userRole="interviewer"
+                    onApprovalComplete={fetchCandidateData}
+                  />
+                )}
+                {(permissions.isHRAdmin || permissions.isHRStaff) && !permissions.isHRManager && (
+                  <>
+                    {(jobProposal.hr_manager_rejection_notes || jobProposal.interviewer_rejection_notes) ? (
+                      <EditableOfferSection
+                        candidateId={id!}
+                        candidate={candidate}
+                        jobProposal={jobProposal}
+                        interviewFeedback={interviewFeedback}
+                        onUpdateComplete={fetchCandidateData}
+                      />
+                    ) : (
+                      <OfferApprovalSection
+                        candidateId={id!}
+                        candidate={candidate}
+                        jobProposal={jobProposal}
+                        interviewFeedback={interviewFeedback}
+                        userRole="hr_user"
+                        onApprovalComplete={fetchCandidateData}
+                      />
+                    )}
+                  </>
+                )}
+              </>
+            )}
+
+            {/* Interviewer Information */}
+            <InterviewerInfo candidateId={id!} candidateStatus={candidate.status} />
+
+            {/* Interviews */}
+            <Card id="interview-history-card">
+              <CardHeader>
+                <CardTitle>Interview History</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {interviews.length === 0 ? (
+                  <p className="text-muted-foreground text-center py-8">No interviews scheduled</p>
+                ) : (
+                  <div className="space-y-4">
+                    {interviews.map((interview) => {
+                      const displayStatus = interview.has_feedback ? "feedbacked" : interview.status;
+                      const isHR = permissions.isHRAdmin || permissions.isHRStaff || permissions.isHRManager;
+
+                      return (
+                        <div key={interview.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-medium">{interview.interviewer_name}</p>
+                            <span
+                              className={`px-2 py-1 rounded text-xs ${
+                                displayStatus === "feedbacked"
+                                  ? "bg-purple-100 text-purple-700"
+                                  : displayStatus === "completed"
+                                    ? "bg-green-100 text-green-700"
+                                    : displayStatus === "scheduled"
+                                      ? "bg-blue-100 text-blue-700"
+                                      : displayStatus === "cancelled"
+                                        ? "bg-gray-100 text-gray-700"
+                                        : "bg-gray-100 text-gray-700"
+                              }`}
+                            >
+                              {displayStatus}
+                            </span>
+                          </div>
+                          <p className="text-sm text-muted-foreground">
+                            {new Date(interview.interview_date).toLocaleDateString()} at {interview.interview_time}
+                          </p>
+                          {interview.location && <p className="text-sm mt-1">Location: {interview.location}</p>}
+                          {interview.notes && <p className="text-sm mt-2 text-muted-foreground">{interview.notes}</p>}
+
+                          {interview.has_feedback && isHR && (
+                            <div className="mt-3 pt-3 border-t">
+                              <Button
+                                variant="link"
+                                size="sm"
+                                className="h-auto p-0 text-primary"
+                                onClick={() => navigate(`/feedback/view/${interview.feedback_id}`)}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View Feedback
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Status Management */}
+          <div className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Candidate Status</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-2">Current Status</p>
+                    <StatusBadge status={candidate.status} />
+                  </div>
+
+                  {getStatusActions().length > 0 && (
+                    <div className="flex flex-col gap-2">
+                      {getStatusActions().map((action, index) => (
+                        <Button
+                          key={index}
+                          variant={action.variant || "outline"}
+                          onClick={action.onClick}
+                          className="w-full"
+                        >
+                          {action.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Status History</CardTitle>
+              </CardHeader>
+              <CardContent className="overflow-y-auto" style={{ maxHeight: '600px', minHeight: '300px' }}>
+                <StatusHistoryTimeline history={statusHistory} />
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+
+      <ScheduleInterviewDialog
+        open={showScheduleDialog}
+        onOpenChange={setShowScheduleDialog}
+        candidateId={id!}
+        assignment={assignment}
+        onSuccess={fetchCandidateData}
+      />
+
+      <SendOfferDialog
+        open={showOfferDialog}
+        onOpenChange={setShowOfferDialog}
+        candidateId={id!}
+        onSuccess={fetchCandidateData}
+      />
+
+      <ShortlistDialog
+        open={showShortlistDialog}
+        onOpenChange={setShowShortlistDialog}
+        candidateId={id!}
+        onSuccess={fetchCandidateData}
+      />
+    </div>
+  );
+}
